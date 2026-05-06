@@ -159,22 +159,50 @@ export default function ClassView() {
         </TabsList>
 
         <TabsContent value="students" className="mt-6">
+          <p className="text-sm text-muted-foreground mb-3">Edit names or set gender (M/F) — used for correct pronouns in generated comments.</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-            {students.map((s) => (
-              <Card key={s.id} className="p-4 hover:shadow-elevated transition-shadow group">
-                <div className="flex items-start justify-between gap-2">
-                  <Link to={`/students/${s.id}`} className="flex-1">
-                    <h3 className="font-display text-lg leading-tight">{s.name}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
+            {students.map((s) => {
+              const gender = s.overrides?.gender;
+              return (
+                <Card key={s.id} className="p-3 hover:shadow-elevated transition-shadow group">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={s.name}
+                      onChange={(e) => updateStudentName(s.id, e.target.value)}
+                      onBlur={(e) => commitStudentName(s.id, e.target.value)}
+                      className="h-9 font-display"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => cycleGender(s.id)}
+                      className={
+                        gender === "male"
+                          ? "bg-blue-500/15 text-blue-600 border-blue-500/40 hover:bg-blue-500/25"
+                          : gender === "female"
+                          ? "bg-pink-500/15 text-pink-600 border-pink-500/40 hover:bg-pink-500/25"
+                          : ""
+                      }
+                      title="Toggle gender (for pronouns)"
+                    >
+                      {gender === "male" ? "M" : gender === "female" ? "F" : "—"}
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => deleteStudent(s.id)}>
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between mt-2 px-1">
+                    <Link to={`/students/${s.id}`} className="text-xs text-primary hover:underline">
+                      Open notes →
+                    </Link>
+                    <p className="text-xs text-muted-foreground">
                       {counts[s.id] || 0} {(counts[s.id] || 0) === 1 ? "note" : "notes"}
                     </p>
-                  </Link>
-                  <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteStudent(s.id)}>
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
-                </div>
-              </Card>
-            ))}
+                  </div>
+                </Card>
+              );
+            })}
           </div>
           <div className="flex gap-2 max-w-md">
             <Input placeholder="Add a student…" value={newStudent} onChange={(e) => setNewStudent(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addStudent()} />
