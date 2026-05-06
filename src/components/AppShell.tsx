@@ -16,12 +16,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <Link to="/" className="flex items-center gap-2 shrink-0">
             <Sparkles className="w-5 h-5 text-accent" />
             <span className="font-display text-xl">SmartComment</span>
           </Link>
-          <nav className="flex items-center gap-1">
+          <nav className="flex items-center gap-1 ml-auto shrink-0">
             <Button variant="ghost" size="sm" asChild>
               <Link to="/"><BookOpen className="w-4 h-4 mr-1.5" />Classes</Link>
             </Button>
