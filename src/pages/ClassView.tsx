@@ -160,39 +160,65 @@ export default function ClassView() {
         </TabsList>
 
         <TabsContent value="students" className="mt-6">
-          <p className="text-sm text-muted-foreground mb-3">Edit names or set gender (M/F) — used for correct pronouns in generated comments.</p>
+          <p className="text-sm text-muted-foreground mb-3">Click the pencil to edit a student's name or set their gender (M/F) — used for correct pronouns in generated comments.</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
             {students.map((s) => {
               const gender = s.overrides?.gender;
+              const isEditing = editingId === s.id;
               return (
                 <Card key={s.id} className="p-3 hover:shadow-elevated transition-shadow group">
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={s.name}
-                      onChange={(e) => updateStudentName(s.id, e.target.value)}
-                      onBlur={(e) => commitStudentName(s.id, e.target.value)}
-                      className="h-9 font-display"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => cycleGender(s.id)}
-                      className={
-                        gender === "male"
-                          ? "bg-blue-500/15 text-blue-600 border-blue-500/40 hover:bg-blue-500/25"
-                          : gender === "female"
-                          ? "bg-pink-500/15 text-pink-600 border-pink-500/40 hover:bg-pink-500/25"
-                          : ""
-                      }
-                      title="Toggle gender (for pronouns)"
-                    >
-                      {gender === "male" ? "M" : gender === "female" ? "F" : "—"}
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => deleteStudent(s.id)}>
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  </div>
+                  {isEditing ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={s.name}
+                        onChange={(e) => updateStudentName(s.id, e.target.value)}
+                        onBlur={(e) => commitStudentName(s.id, e.target.value)}
+                        autoFocus
+                        className="h-9 font-display"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => cycleGender(s.id)}
+                        className={
+                          gender === "male"
+                            ? "bg-blue-500/15 text-blue-600 border-blue-500/40 hover:bg-blue-500/25"
+                            : gender === "female"
+                            ? "bg-pink-500/15 text-pink-600 border-pink-500/40 hover:bg-pink-500/25"
+                            : ""
+                        }
+                        title="Toggle gender (for pronouns)"
+                      >
+                        {gender === "male" ? "M" : gender === "female" ? "F" : "—"}
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => { commitStudentName(s.id, s.name); setEditingId(null); }} title="Done">
+                        <Check className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => deleteStudent(s.id)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0 font-display px-1 truncate">{s.name}</div>
+                      <span
+                        className={
+                          "inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-md text-xs font-medium border " +
+                          (gender === "male"
+                            ? "bg-blue-500/15 text-blue-600 border-blue-500/40"
+                            : gender === "female"
+                            ? "bg-pink-500/15 text-pink-600 border-pink-500/40"
+                            : "text-muted-foreground border-border")
+                        }
+                      >
+                        {gender === "male" ? "M" : gender === "female" ? "F" : "—"}
+                      </span>
+                      <Button variant="ghost" size="icon" onClick={() => setEditingId(s.id)} title="Edit">
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between mt-2 px-1">
                     <Link to={`/students/${s.id}`} className="text-xs text-primary hover:underline">
                       Open notes →
