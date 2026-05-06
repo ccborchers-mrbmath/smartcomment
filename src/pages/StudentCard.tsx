@@ -10,7 +10,7 @@ import { ArrowLeft, ArrowRight, Mic, Square, Image as ImageIcon, FileText, Paper
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
-type Student = { id: string; name: string; class_id: string };
+type Student = { id: string; name: string; class_id: string; overrides: any };
 type Input = {
   id: string;
   type: "voice" | "handwriting" | "typed" | "file";
