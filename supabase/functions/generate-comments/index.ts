@@ -91,7 +91,7 @@ CRITICAL NAMING RULE: When referring to the student in the comment, use ONLY the
         ? "he/him/his (use male pronouns only)"
         : gender === "female"
         ? "she/her/hers (use female pronouns only)"
-        : "(gender unspecified — prefer the student's name; if a pronoun is needed use 'they/them')";
+        : "(gender unspecified — refer to the student by name only; NEVER use they/them/their — singular they is not permitted)";
       const otherOv = { ...ov };
       delete otherOv.gender;
       const ovText = Object.keys(otherOv).length ? `Per-student override: ${JSON.stringify(otherOv)}` : "";
