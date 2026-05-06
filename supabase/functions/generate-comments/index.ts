@@ -77,7 +77,12 @@ Output one comment per student, faithful to the notes provided. Never invent fac
 
 CRITICAL PRONOUN RULE: Each student block has a PRONOUNS field. Use ONLY those pronouns when referring to the student. The per-student PRONOUNS field overrides any global pronoun setting.
 
-CRITICAL NAMING RULE: When referring to the student in the comment, use ONLY the exact spelling of their first name as provided in the NAME field below. Do not change, shorten, lengthen, anglicise, or "correct" the spelling — even if notes, transcripts, or OCR contain a different spelling. The roster spelling is the source of truth. Use the first word of the NAME field as the first name.${instruction ? `\n\nADDITIONAL INSTRUCTION: ${instruction}` : ""}`;
+CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
+- The NAME field in each student block is the AUTHORITATIVE spelling of the student's name. It comes from the official class roster.
+- Typed notes, voice transcripts, OCR text, and any other source MAY contain DIFFERENT spellings of the same name (e.g. roster says "Aleisha" but a voice transcript says "Alicia", or roster says "Siôn" but notes say "Shawn"). These differences are ERRORS in the source — they are NOT alternative valid spellings.
+- You MUST use ONLY the exact spelling from the NAME field every single time you refer to the student. Do not change, shorten, lengthen, anglicise, phoneticise, or "correct" it. Do not mix spellings within a comment.
+- If the notes contain a name spelled differently, treat that as referring to THIS student and silently use the roster spelling instead.
+- Use the first word of the NAME field as the first name.${instruction ? `\n\nADDITIONAL INSTRUCTION: ${instruction}` : ""}`;
 
     const studentBlocks = students.map((s) => {
       const myInputs = (inputs ?? []).filter((i) => i.student_id === s.id);
