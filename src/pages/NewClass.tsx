@@ -36,7 +36,13 @@ export default function NewClass() {
   const [term, setTerm] = useState("");
   const [pasted, setPasted] = useState("");
   const [names, setNames] = useState<string[]>([]);
+  const [genders, setGenders] = useState<("male" | "female" | null)[]>([]);
   const [dragOver, setDragOver] = useState(false);
+
+  const addNames = (extracted: string[]) => {
+    setNames((prev) => [...prev, ...extracted]);
+    setGenders((prev) => [...prev, ...extracted.map(() => null)]);
+  };
 
   // Listen for paste anywhere on the page while on step 1
   useEffect(() => {
