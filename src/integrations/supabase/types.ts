@@ -224,6 +224,27 @@ export type Database = {
         }
         Relationships: []
       }
+      teacher_defaults: {
+        Row: {
+          created_at: string
+          requirements: Json
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          requirements?: Json
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          requirements?: Json
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
