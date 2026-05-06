@@ -217,25 +217,41 @@ export default function NewClass() {
           {step === 1 ? (
             <>
               <p className="text-sm text-muted-foreground">
-                Upload a screenshot, photo, CSV, or paste names below. AI will extract and you'll review.
+                Snip your class list and paste it here (Ctrl/Cmd+V), drag in an image, or upload a CSV. AI extracts the names for you to review.
               </p>
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-8 cursor-pointer hover:bg-muted/50 transition-colors">
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={onDrop}
+                className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 transition-colors ${dragOver ? "border-primary bg-primary/5" : "border-border"}`}
+              >
                 {busy ? (
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 ) : (
                   <>
-                    <Upload className="w-6 h-6 mb-2 text-muted-foreground" />
-                    <span className="text-sm">Click to upload image or CSV</span>
+                    <ImageIcon className="w-7 h-7 mb-2 text-muted-foreground" />
+                    <p className="text-sm font-medium mb-1">Paste a screenshot</p>
+                    <p className="text-xs text-muted-foreground mb-4">Press <kbd className="px-1.5 py-0.5 rounded bg-muted text-foreground text-[10px]">Ctrl/⌘ + V</kbd> anywhere, or drag an image here</p>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="secondary" size="sm" onClick={pasteFromClipboard}>
+                        <ClipboardPaste className="w-3.5 h-3.5 mr-1.5" />Paste from clipboard
+                      </Button>
+                      <label>
+                        <Button type="button" variant="outline" size="sm" asChild>
+                          <span><Upload className="w-3.5 h-3.5 mr-1.5" />Upload file</span>
+                        </Button>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*,.csv,.txt,.tsv"
+                          disabled={busy}
+                          onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+                        />
+                      </label>
+                    </div>
                   </>
                 )}
-                <input
-                  type="file"
-                  className="hidden"
-                  accept="image/*,.csv,.txt,.tsv"
-                  disabled={busy}
-                  onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-                />
-              </label>
+              </div>
               <div className="text-center text-xs text-muted-foreground">or</div>
               <Textarea
                 placeholder="Paste a list of names (one per line, or from Excel/Word)…"
