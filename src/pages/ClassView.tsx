@@ -24,6 +24,7 @@ export default function ClassView() {
   const [reqs, setReqs] = useState<any>({});
   const [savingReqs, setSavingReqs] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
