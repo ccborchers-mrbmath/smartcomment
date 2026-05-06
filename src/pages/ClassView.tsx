@@ -12,7 +12,7 @@ import { ArrowLeft, ArrowRight, Plus, Settings, Sparkles, Loader2, Trash2 } from
 import { toast } from "sonner";
 
 type Klass = { id: string; name: string; year_grade: string | null; subject: string | null; term: string | null; requirements: any };
-type Student = { id: string; name: string; position: number };
+type Student = { id: string; name: string; position: number; overrides: any };
 
 export default function ClassView() {
   const { id } = useParams<{ id: string }>();
@@ -31,8 +31,8 @@ export default function ClassView() {
       const { data: c } = await supabase.from("classes").select("*").eq("id", id).single();
       setKlass(c);
       setReqs(c?.requirements ?? {});
-      const { data: s } = await supabase.from("students").select("id, name, position").eq("class_id", id).order("position");
-      setStudents(s ?? []);
+      const { data: s } = await supabase.from("students").select("id, name, position, overrides").eq("class_id", id).order("position");
+      setStudents((s ?? []) as Student[]);
       const ids = (s ?? []).map((x) => x.id);
       if (ids.length) {
         const { data: ins } = await supabase.from("student_inputs").select("student_id").in("student_id", ids);
@@ -49,11 +49,40 @@ export default function ClassView() {
     const { data, error } = await supabase
       .from("students")
       .insert({ class_id: klass.id, teacher_id: u.user!.id, name: newStudent.trim(), position: students.length })
-      .select()
+      .select("id, name, position, overrides")
       .single();
     if (error) { toast.error(error.message); return; }
-    setStudents((p) => [...p, data]);
+    setStudents((p) => [...p, data as Student]);
     setNewStudent("");
+  };
+
+  const updateStudentName = async (sid: string, name: string) => {
+    setStudents((p) => p.map((s) => (s.id === sid ? { ...s, name } : s)));
+  };
+
+  const commitStudentName = async (sid: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const { error } = await supabase.from("students").update({ name: trimmed }).eq("id", sid);
+    if (error) toast.error(error.message);
+  };
+
+  const setStudentGender = async (sid: string, gender: "male" | "female" | null) => {
+    const student = students.find((s) => s.id === sid);
+    if (!student) return;
+    const newOverrides = { ...(student.overrides || {}) };
+    if (gender === null) delete newOverrides.gender;
+    else newOverrides.gender = gender;
+    setStudents((p) => p.map((s) => (s.id === sid ? { ...s, overrides: newOverrides } : s)));
+    const { error } = await supabase.from("students").update({ overrides: newOverrides }).eq("id", sid);
+    if (error) toast.error(error.message);
+  };
+
+  const cycleGender = (sid: string) => {
+    const s = students.find((x) => x.id === sid);
+    const cur = s?.overrides?.gender;
+    const next = cur === "male" ? "female" : cur === "female" ? null : "male";
+    setStudentGender(sid, next as any);
   };
 
   const deleteStudent = async (sid: string) => {
@@ -130,22 +159,50 @@ export default function ClassView() {
         </TabsList>
 
         <TabsContent value="students" className="mt-6">
+          <p className="text-sm text-muted-foreground mb-3">Edit names or set gender (M/F) — used for correct pronouns in generated comments.</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-            {students.map((s) => (
-              <Card key={s.id} className="p-4 hover:shadow-elevated transition-shadow group">
-                <div className="flex items-start justify-between gap-2">
-                  <Link to={`/students/${s.id}`} className="flex-1">
-                    <h3 className="font-display text-lg leading-tight">{s.name}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
+            {students.map((s) => {
+              const gender = s.overrides?.gender;
+              return (
+                <Card key={s.id} className="p-3 hover:shadow-elevated transition-shadow group">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={s.name}
+                      onChange={(e) => updateStudentName(s.id, e.target.value)}
+                      onBlur={(e) => commitStudentName(s.id, e.target.value)}
+                      className="h-9 font-display"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => cycleGender(s.id)}
+                      className={
+                        gender === "male"
+                          ? "bg-blue-500/15 text-blue-600 border-blue-500/40 hover:bg-blue-500/25"
+                          : gender === "female"
+                          ? "bg-pink-500/15 text-pink-600 border-pink-500/40 hover:bg-pink-500/25"
+                          : ""
+                      }
+                      title="Toggle gender (for pronouns)"
+                    >
+                      {gender === "male" ? "M" : gender === "female" ? "F" : "—"}
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => deleteStudent(s.id)}>
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between mt-2 px-1">
+                    <Link to={`/students/${s.id}`} className="text-xs text-primary hover:underline">
+                      Open notes →
+                    </Link>
+                    <p className="text-xs text-muted-foreground">
                       {counts[s.id] || 0} {(counts[s.id] || 0) === 1 ? "note" : "notes"}
                     </p>
-                  </Link>
-                  <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteStudent(s.id)}>
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
-                </div>
-              </Card>
-            ))}
+                  </div>
+                </Card>
+              );
+            })}
           </div>
           <div className="flex gap-2 max-w-md">
             <Input placeholder="Add a student…" value={newStudent} onChange={(e) => setNewStudent(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addStudent()} />
