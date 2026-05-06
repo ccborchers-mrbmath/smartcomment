@@ -33,6 +33,7 @@ export default function StudentCard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [student, setStudent] = useState<Student | null>(null);
+  const [siblings, setSiblings] = useState<{ id: string }[]>([]);
   const [inputs, setInputs] = useState<Input[]>([]);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
