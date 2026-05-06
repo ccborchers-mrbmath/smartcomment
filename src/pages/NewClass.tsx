@@ -36,7 +36,13 @@ export default function NewClass() {
   const [term, setTerm] = useState("");
   const [pasted, setPasted] = useState("");
   const [names, setNames] = useState<string[]>([]);
+  const [genders, setGenders] = useState<("male" | "female" | null)[]>([]);
   const [dragOver, setDragOver] = useState(false);
+
+  const addNames = (extracted: string[]) => {
+    setNames((prev) => [...prev, ...extracted]);
+    setGenders((prev) => [...prev, ...extracted.map(() => null)]);
+  };
 
   // Listen for paste anywhere on the page while on step 1
   useEffect(() => {
@@ -119,7 +125,7 @@ export default function NewClass() {
       if (extracted.length === 0) {
         toast.error("No names detected. Try pasting text or use a clearer image.");
       } else {
-        setNames((prev) => [...prev, ...extracted]);
+        addNames(extracted);
         setStep(2);
         toast.success(`Found ${extracted.length} names`);
       }
@@ -138,7 +144,7 @@ export default function NewClass() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const extracted: string[] = data?.names ?? [];
-      setNames((prev) => [...prev, ...extracted]);
+      addNames(extracted);
       setPasted("");
       if (extracted.length) {
         setStep(2);
@@ -170,7 +176,13 @@ export default function NewClass() {
         .select()
         .single();
       if (error) throw error;
-      const rows = names.map((n, i) => ({ class_id: cls.id, teacher_id: teacherId, name: n, position: i }));
+      const rows = names.map((n, i) => ({
+        class_id: cls.id,
+        teacher_id: teacherId,
+        name: n,
+        position: i,
+        overrides: genders[i] ? { gender: genders[i] } : {},
+      }));
       const { error: sErr } = await supabase.from("students").insert(rows);
       if (sErr) throw sErr;
       toast.success("Class created");
@@ -266,21 +278,39 @@ export default function NewClass() {
             </>
           ) : (
             <>
-              <p className="text-sm text-muted-foreground">Review and edit before saving. {names.length} students.</p>
-              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+              <p className="text-sm text-muted-foreground">Review names, fix any spelling mistakes, and set gender for accurate pronouns. {names.length} students.</p>
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                 {names.map((n, i) => (
-                  <div key={i} className="flex gap-2">
+                  <div key={i} className="flex gap-2 items-center">
                     <Input
                       value={n}
+                      placeholder="Student name"
                       onChange={(e) => setNames((p) => p.map((x, idx) => (idx === i ? e.target.value : x)))}
                     />
-                    <Button variant="ghost" size="icon" onClick={() => setNames((p) => p.filter((_, idx) => idx !== i))}>
+                    <div className="flex rounded-md border border-input overflow-hidden shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setGenders((p) => p.map((x, idx) => (idx === i ? (x === "male" ? null : "male") : x)))}
+                        className={`px-2.5 py-2 text-xs font-medium transition-colors ${genders[i] === "male" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+                        title="Male (he/him/his)"
+                      >M</button>
+                      <button
+                        type="button"
+                        onClick={() => setGenders((p) => p.map((x, idx) => (idx === i ? (x === "female" ? null : "female") : x)))}
+                        className={`px-2.5 py-2 text-xs font-medium border-l border-input transition-colors ${genders[i] === "female" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+                        title="Female (she/her/hers)"
+                      >F</button>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => {
+                      setNames((p) => p.filter((_, idx) => idx !== i));
+                      setGenders((p) => p.filter((_, idx) => idx !== i));
+                    }}>
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
                 ))}
               </div>
-              <Button variant="outline" size="sm" onClick={() => setNames((p) => [...p, ""])} className="w-full">
+              <Button variant="outline" size="sm" onClick={() => { setNames((p) => [...p, ""]); setGenders((p) => [...p, null]); }} className="w-full">
                 <Plus className="w-4 h-4 mr-1.5" />Add student
               </Button>
               <div className="flex gap-2 pt-2">
