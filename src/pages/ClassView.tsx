@@ -49,11 +49,40 @@ export default function ClassView() {
     const { data, error } = await supabase
       .from("students")
       .insert({ class_id: klass.id, teacher_id: u.user!.id, name: newStudent.trim(), position: students.length })
-      .select()
+      .select("id, name, position, overrides")
       .single();
     if (error) { toast.error(error.message); return; }
-    setStudents((p) => [...p, data]);
+    setStudents((p) => [...p, data as Student]);
     setNewStudent("");
+  };
+
+  const updateStudentName = async (sid: string, name: string) => {
+    setStudents((p) => p.map((s) => (s.id === sid ? { ...s, name } : s)));
+  };
+
+  const commitStudentName = async (sid: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const { error } = await supabase.from("students").update({ name: trimmed }).eq("id", sid);
+    if (error) toast.error(error.message);
+  };
+
+  const setStudentGender = async (sid: string, gender: "male" | "female" | null) => {
+    const student = students.find((s) => s.id === sid);
+    if (!student) return;
+    const newOverrides = { ...(student.overrides || {}) };
+    if (gender === null) delete newOverrides.gender;
+    else newOverrides.gender = gender;
+    setStudents((p) => p.map((s) => (s.id === sid ? { ...s, overrides: newOverrides } : s)));
+    const { error } = await supabase.from("students").update({ overrides: newOverrides }).eq("id", sid);
+    if (error) toast.error(error.message);
+  };
+
+  const cycleGender = (sid: string) => {
+    const s = students.find((x) => x.id === sid);
+    const cur = s?.overrides?.gender;
+    const next = cur === "male" ? "female" : cur === "female" ? null : "male";
+    setStudentGender(sid, next as any);
   };
 
   const deleteStudent = async (sid: string) => {
