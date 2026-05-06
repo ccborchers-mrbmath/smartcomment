@@ -125,7 +125,7 @@ export default function NewClass() {
       if (extracted.length === 0) {
         toast.error("No names detected. Try pasting text or use a clearer image.");
       } else {
-        setNames((prev) => [...prev, ...extracted]);
+        addNames(extracted);
         setStep(2);
         toast.success(`Found ${extracted.length} names`);
       }
@@ -144,7 +144,7 @@ export default function NewClass() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const extracted: string[] = data?.names ?? [];
-      setNames((prev) => [...prev, ...extracted]);
+      addNames(extracted);
       setPasted("");
       if (extracted.length) {
         setStep(2);
@@ -176,7 +176,13 @@ export default function NewClass() {
         .select()
         .single();
       if (error) throw error;
-      const rows = names.map((n, i) => ({ class_id: cls.id, teacher_id: teacherId, name: n, position: i }));
+      const rows = names.map((n, i) => ({
+        class_id: cls.id,
+        teacher_id: teacherId,
+        name: n,
+        position: i,
+        overrides: genders[i] ? { gender: genders[i] } : {},
+      }));
       const { error: sErr } = await supabase.from("students").insert(rows);
       if (sErr) throw sErr;
       toast.success("Class created");
