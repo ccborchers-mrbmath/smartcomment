@@ -46,6 +46,14 @@ export default function StudentCard() {
     if (!id) return;
     const { data: s } = await supabase.from("students").select("id, name, class_id").eq("id", id).single();
     setStudent(s);
+    if (s) {
+      const { data: sibs } = await supabase
+        .from("students")
+        .select("id")
+        .eq("class_id", s.class_id)
+        .order("position", { ascending: true });
+      setSiblings((sibs ?? []) as { id: string }[]);
+    }
     const { data: ins } = await supabase
       .from("student_inputs")
       .select("*")
