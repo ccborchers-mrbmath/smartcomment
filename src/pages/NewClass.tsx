@@ -231,7 +231,7 @@ export default function NewClass() {
                   <>
                     <ImageIcon className="w-7 h-7 mb-2 text-muted-foreground" />
                     <p className="text-sm font-medium mb-1">Paste a screenshot</p>
-                    <p className="text-xs text-muted-foreground mb-4">Press <kbd className="px-1.5 py-0.5 rounded bg-muted text-foreground text-[10px]">Ctrl/⌘ + V</kbd> anywhere, or drag an image here</p>
+                    <p className="text-xs text-muted-foreground mb-4">Press <kbd className="px-1.5 py-0.5 rounded bg-muted text-foreground text-[10px]">Ctrl/Cmd + V</kbd> anywhere, or drag an image here</p>
                     <div className="flex gap-2">
                       <Button type="button" variant="secondary" size="sm" onClick={pasteFromClipboard}>
                         <ClipboardPaste className="w-3.5 h-3.5 mr-1.5" />Paste from clipboard
