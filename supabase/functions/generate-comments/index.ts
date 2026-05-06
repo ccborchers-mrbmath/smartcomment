@@ -35,6 +35,11 @@ serve(async (req) => {
     }
     const classId = students[0].class_id;
     const { data: cls } = await supabase.from("classes").select("*").eq("id", classId).single();
+    const { data: defaults } = await supabase
+      .from("teacher_defaults")
+      .select("requirements")
+      .eq("teacher_id", user.id)
+      .maybeSingle();
     const { data: inputs } = await supabase
       .from("student_inputs")
       .select("student_id, type, text, transcript, created_at")
@@ -45,7 +50,13 @@ serve(async (req) => {
       .select("text")
       .limit(20);
 
-    const reqs = (cls?.requirements ?? {}) as any;
+    const classReqs = (cls?.requirements ?? {}) as any;
+    const defaultReqs = (defaults?.requirements ?? {}) as any;
+    // Class-level overrides win over teacher-wide defaults; ignore empty/null fields
+    const reqs: any = { ...defaultReqs };
+    for (const [k, v] of Object.entries(classReqs)) {
+      if (v !== null && v !== undefined && v !== "") reqs[k] = v;
+    }
     const styleText = (styleSamples ?? []).map((s) => s.text).join("\n\n---\n\n");
 
     const systemPrompt = `You write end-of-term school report comments for a teacher.
