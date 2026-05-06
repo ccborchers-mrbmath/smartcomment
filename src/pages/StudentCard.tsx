@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Mic, Square, Image as ImageIcon, FileText, Paperclip, Loader2, Trash2, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Mic, Square, Image as ImageIcon, FileText, Paperclip, Loader2, Trash2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
@@ -33,6 +33,7 @@ export default function StudentCard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [student, setStudent] = useState<Student | null>(null);
+  const [siblings, setSiblings] = useState<{ id: string }[]>([]);
   const [inputs, setInputs] = useState<Input[]>([]);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
@@ -45,6 +46,14 @@ export default function StudentCard() {
     if (!id) return;
     const { data: s } = await supabase.from("students").select("id, name, class_id").eq("id", id).single();
     setStudent(s);
+    if (s) {
+      const { data: sibs } = await supabase
+        .from("students")
+        .select("id")
+        .eq("class_id", s.class_id)
+        .order("position", { ascending: true });
+      setSiblings((sibs ?? []) as { id: string }[]);
+    }
     const { data: ins } = await supabase
       .from("student_inputs")
       .select("*")
@@ -214,9 +223,26 @@ export default function StudentCard() {
 
   return (
     <AppShell>
-      <Button variant="ghost" size="sm" asChild className="mb-4">
-        <Link to={`/classes/${student.class_id}`}><ArrowLeft className="w-4 h-4 mr-1.5" />Back to class</Link>
-      </Button>
+      {(() => {
+        const idx = siblings.findIndex((s) => s.id === student.id);
+        const prev = idx > 0 ? siblings[idx - 1] : null;
+        const next = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
+        return (
+          <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+            <Button variant="ghost" size="sm" asChild>
+              <Link to={`/classes/${student.class_id}`}><ArrowLeft className="w-4 h-4 mr-1.5" />Back to class</Link>
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled={!prev} asChild={!!prev}>
+                {prev ? <Link to={`/students/${prev.id}`}><ArrowLeft className="w-4 h-4 mr-1.5" />Previous</Link> : <span><ArrowLeft className="w-4 h-4 mr-1.5" />Previous</span>}
+              </Button>
+              <Button variant="outline" size="sm" disabled={!next} asChild={!!next}>
+                {next ? <Link to={`/students/${next.id}`}>Next<ArrowRight className="w-4 h-4 ml-1.5" /></Link> : <span>Next<ArrowRight className="w-4 h-4 ml-1.5" /></span>}
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
       <div className="flex items-end justify-between mb-8 flex-wrap gap-4">
         <h1 className="font-display text-4xl">{student.name}</h1>
         <Button onClick={generate} disabled={generating}>
