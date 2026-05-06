@@ -223,9 +223,26 @@ export default function StudentCard() {
 
   return (
     <AppShell>
-      <Button variant="ghost" size="sm" asChild className="mb-4">
-        <Link to={`/classes/${student.class_id}`}><ArrowLeft className="w-4 h-4 mr-1.5" />Back to class</Link>
-      </Button>
+      {(() => {
+        const idx = siblings.findIndex((s) => s.id === student.id);
+        const prev = idx > 0 ? siblings[idx - 1] : null;
+        const next = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
+        return (
+          <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+            <Button variant="ghost" size="sm" asChild>
+              <Link to={`/classes/${student.class_id}`}><ArrowLeft className="w-4 h-4 mr-1.5" />Back to class</Link>
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled={!prev} asChild={!!prev}>
+                {prev ? <Link to={`/students/${prev.id}`}><ArrowLeft className="w-4 h-4 mr-1.5" />Previous</Link> : <span><ArrowLeft className="w-4 h-4 mr-1.5" />Previous</span>}
+              </Button>
+              <Button variant="outline" size="sm" disabled={!next} asChild={!!next}>
+                {next ? <Link to={`/students/${next.id}`}>Next<ArrowRight className="w-4 h-4 ml-1.5" /></Link> : <span>Next<ArrowRight className="w-4 h-4 ml-1.5" /></span>}
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
       <div className="flex items-end justify-between mb-8 flex-wrap gap-4">
         <h1 className="font-display text-4xl">{student.name}</h1>
         <Button onClick={generate} disabled={generating}>
