@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, ArrowRight, Plus, Settings, Sparkles, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Settings, Sparkles, Loader2, Trash2, Pencil, Check } from "lucide-react";
 import { toast } from "sonner";
 
 type Klass = { id: string; name: string; year_grade: string | null; subject: string | null; term: string | null; requirements: any };
