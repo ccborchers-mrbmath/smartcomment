@@ -10,7 +10,7 @@ import { ArrowLeft, ArrowRight, Mic, Square, Image as ImageIcon, FileText, Paper
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
-type Student = { id: string; name: string; class_id: string };
+type Student = { id: string; name: string; class_id: string; overrides: any };
 type Input = {
   id: string;
   type: "voice" | "handwriting" | "typed" | "file";
@@ -44,7 +44,7 @@ export default function StudentCard() {
 
   const load = async () => {
     if (!id) return;
-    const { data: s } = await supabase.from("students").select("id, name, class_id").eq("id", id).single();
+    const { data: s } = await supabase.from("students").select("id, name, class_id, overrides").eq("id", id).single();
     setStudent(s);
     if (s) {
       const { data: sibs } = await supabase
