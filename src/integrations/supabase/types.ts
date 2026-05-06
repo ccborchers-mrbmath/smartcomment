@@ -14,7 +14,216 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      classes: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          requirements: Json
+          subject: string | null
+          teacher_id: string
+          term: string | null
+          updated_at: string
+          year_grade: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          requirements?: Json
+          subject?: string | null
+          teacher_id: string
+          term?: string | null
+          updated_at?: string
+          year_grade?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          requirements?: Json
+          subject?: string | null
+          teacher_id?: string
+          term?: string | null
+          updated_at?: string
+          year_grade?: string | null
+        }
+        Relationships: []
+      }
+      generated_comments: {
+        Row: {
+          created_at: string
+          id: string
+          model: string | null
+          student_id: string
+          teacher_id: string
+          text: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          model?: string | null
+          student_id: string
+          teacher_id: string
+          text: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          model?: string | null
+          student_id?: string
+          teacher_id?: string
+          text?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_comments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      student_inputs: {
+        Row: {
+          created_at: string
+          id: string
+          media_path: string | null
+          media_url: string | null
+          student_id: string
+          teacher_id: string
+          text: string | null
+          transcript: string | null
+          type: Database["public"]["Enums"]["input_type"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          media_path?: string | null
+          media_url?: string | null
+          student_id: string
+          teacher_id: string
+          text?: string | null
+          transcript?: string | null
+          type: Database["public"]["Enums"]["input_type"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          media_path?: string | null
+          media_url?: string | null
+          student_id?: string
+          teacher_id?: string
+          text?: string | null
+          transcript?: string | null
+          type?: Database["public"]["Enums"]["input_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_inputs_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      students: {
+        Row: {
+          class_id: string
+          created_at: string
+          id: string
+          name: string
+          overrides: Json
+          position: number
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          id?: string
+          name: string
+          overrides?: Json
+          position?: number
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          overrides?: Json
+          position?: number
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "students_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      style_samples: {
+        Row: {
+          created_at: string
+          id: string
+          source: string | null
+          teacher_id: string
+          text: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          source?: string | null
+          teacher_id: string
+          text: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          source?: string | null
+          teacher_id?: string
+          text?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +232,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      input_type: "voice" | "handwriting" | "typed" | "file"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +359,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      input_type: ["voice", "handwriting", "typed", "file"],
+    },
   },
 } as const
