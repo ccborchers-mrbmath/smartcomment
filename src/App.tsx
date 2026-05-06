@@ -11,6 +11,7 @@ import NewClass from "./pages/NewClass";
 import ClassView from "./pages/ClassView";
 import StudentCard from "./pages/StudentCard";
 import StyleBank from "./pages/StyleBank";
+import Requirements from "./pages/Requirements";
 import ReviewExport from "./pages/ReviewExport";
 import NotFound from "./pages/NotFound";
 
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/classes/:id/review" element={<ProtectedRoute><ReviewExport /></ProtectedRoute>} />
             <Route path="/students/:id" element={<ProtectedRoute><StudentCard /></ProtectedRoute>} />
             <Route path="/style-bank" element={<ProtectedRoute><StyleBank /></ProtectedRoute>} />
+            <Route path="/requirements" element={<ProtectedRoute><Requirements /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

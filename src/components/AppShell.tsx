@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Sparkles, BookOpen, LogOut, Library } from "lucide-react";
+import { Sparkles, BookOpen, LogOut, Library, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,6 +27,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </Button>
             <Button variant="ghost" size="sm" asChild>
               <Link to="/style-bank"><Library className="w-4 h-4 mr-1.5" />Style bank</Link>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/requirements"><Settings className="w-4 h-4 mr-1.5" />Requirements</Link>
             </Button>
             <span className="hidden sm:inline text-sm text-muted-foreground mx-3">{user?.email}</span>
             <Button variant="ghost" size="sm" onClick={signOut}>
