@@ -12,7 +12,7 @@ import { ArrowLeft, ArrowRight, Plus, Settings, Sparkles, Loader2, Trash2 } from
 import { toast } from "sonner";
 
 type Klass = { id: string; name: string; year_grade: string | null; subject: string | null; term: string | null; requirements: any };
-type Student = { id: string; name: string; position: number };
+type Student = { id: string; name: string; position: number; overrides: any };
 
 export default function ClassView() {
   const { id } = useParams<{ id: string }>();
