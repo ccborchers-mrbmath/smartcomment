@@ -62,7 +62,9 @@ ${reqs.bannedPhrases ? `- Avoid these phrases: ${reqs.bannedPhrases}` : ""}
 ${reqs.mustInclude ? `- Must include: ${reqs.mustInclude}` : ""}
 ${reqs.notes ? `\nAdditional notes: ${reqs.notes}` : ""}
 
-Output one comment per student, faithful to the notes provided. Never invent facts.${instruction ? `\n\nADDITIONAL INSTRUCTION: ${instruction}` : ""}`;
+Output one comment per student, faithful to the notes provided. Never invent facts.
+
+CRITICAL NAMING RULE: When referring to the student in the comment, use ONLY the exact spelling of their first name as provided in the NAME field below. Do not change, shorten, lengthen, anglicise, or "correct" the spelling — even if notes, transcripts, or OCR contain a different spelling. The roster spelling is the source of truth. Use the first word of the NAME field as the first name.${instruction ? `\n\nADDITIONAL INSTRUCTION: ${instruction}` : ""}`;
 
     const studentBlocks = students.map((s) => {
       const myInputs = (inputs ?? []).filter((i) => i.student_id === s.id);
