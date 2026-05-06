@@ -31,8 +31,8 @@ export default function ClassView() {
       const { data: c } = await supabase.from("classes").select("*").eq("id", id).single();
       setKlass(c);
       setReqs(c?.requirements ?? {});
-      const { data: s } = await supabase.from("students").select("id, name, position").eq("class_id", id).order("position");
-      setStudents(s ?? []);
+      const { data: s } = await supabase.from("students").select("id, name, position, overrides").eq("class_id", id).order("position");
+      setStudents((s ?? []) as Student[]);
       const ids = (s ?? []).map((x) => x.id);
       if (ids.length) {
         const { data: ins } = await supabase.from("student_inputs").select("student_id").in("student_id", ids);
