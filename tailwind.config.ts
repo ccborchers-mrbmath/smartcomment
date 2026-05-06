@@ -63,6 +63,18 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      fontFamily: {
+        display: ['Fraunces', 'Georgia', 'serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
+      backgroundImage: {
+        'gradient-warm': 'var(--gradient-warm)',
+        'gradient-ink': 'var(--gradient-ink)',
+      },
+      boxShadow: {
+        soft: 'var(--shadow-soft)',
+        elevated: 'var(--shadow-elevated)',
+      },
       keyframes: {
         "accordion-down": {
           from: {
