@@ -36,6 +36,68 @@ export default function NewClass() {
   const [term, setTerm] = useState("");
   const [pasted, setPasted] = useState("");
   const [names, setNames] = useState<string[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+
+  // Listen for paste anywhere on the page while on step 1
+  useEffect(() => {
+    if (step !== 1) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT")) {
+        const hasImage = Array.from(e.clipboardData?.items ?? []).some((it) => it.type.startsWith("image/"));
+        if (!hasImage) return;
+      }
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            toast.success("Screenshot pasted — extracting names…");
+            handleFile(file);
+            return;
+          }
+        }
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  const pasteFromClipboard = async () => {
+    try {
+      // @ts-ignore
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imgType = item.types.find((t: string) => t.startsWith("image/"));
+        if (imgType) {
+          const blob = await item.getType(imgType);
+          const file = new File([blob], "pasted.png", { type: imgType });
+          toast.success("Screenshot pasted — extracting names…");
+          handleFile(file);
+          return;
+        }
+      }
+      const text = await navigator.clipboard.readText();
+      if (text.trim()) {
+        setPasted(text);
+        toast.info("Text pasted — click Extract names");
+      } else {
+        toast.error("No image or text found in clipboard");
+      }
+    } catch {
+      toast.error("Couldn't read clipboard. Try Ctrl/Cmd+V instead.");
+    }
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  };
 
   const handleFile = async (file: File) => {
     setBusy(true);
