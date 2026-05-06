@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import AppShell from "@/components/AppShell";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, Loader2, X, Plus, ArrowLeft } from "lucide-react";
+import { Upload, Loader2, X, Plus, ArrowLeft, ClipboardPaste, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 
 const fileToBase64 = (file: File): Promise<string> =>
@@ -36,6 +36,68 @@ export default function NewClass() {
   const [term, setTerm] = useState("");
   const [pasted, setPasted] = useState("");
   const [names, setNames] = useState<string[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+
+  // Listen for paste anywhere on the page while on step 1
+  useEffect(() => {
+    if (step !== 1) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT")) {
+        const hasImage = Array.from(e.clipboardData?.items ?? []).some((it) => it.type.startsWith("image/"));
+        if (!hasImage) return;
+      }
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            toast.success("Screenshot pasted — extracting names…");
+            handleFile(file);
+            return;
+          }
+        }
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  const pasteFromClipboard = async () => {
+    try {
+      // @ts-ignore
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imgType = item.types.find((t: string) => t.startsWith("image/"));
+        if (imgType) {
+          const blob = await item.getType(imgType);
+          const file = new File([blob], "pasted.png", { type: imgType });
+          toast.success("Screenshot pasted — extracting names…");
+          handleFile(file);
+          return;
+        }
+      }
+      const text = await navigator.clipboard.readText();
+      if (text.trim()) {
+        setPasted(text);
+        toast.info("Text pasted — click Extract names");
+      } else {
+        toast.error("No image or text found in clipboard");
+      }
+    } catch {
+      toast.error("Couldn't read clipboard. Try Ctrl/Cmd+V instead.");
+    }
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  };
 
   const handleFile = async (file: File) => {
     setBusy(true);
@@ -155,25 +217,41 @@ export default function NewClass() {
           {step === 1 ? (
             <>
               <p className="text-sm text-muted-foreground">
-                Upload a screenshot, photo, CSV, or paste names below. AI will extract and you'll review.
+                Snip your class list and paste it here (Ctrl/Cmd+V), drag in an image, or upload a CSV. AI extracts the names for you to review.
               </p>
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-8 cursor-pointer hover:bg-muted/50 transition-colors">
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={onDrop}
+                className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 transition-colors ${dragOver ? "border-primary bg-primary/5" : "border-border"}`}
+              >
                 {busy ? (
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 ) : (
                   <>
-                    <Upload className="w-6 h-6 mb-2 text-muted-foreground" />
-                    <span className="text-sm">Click to upload image or CSV</span>
+                    <ImageIcon className="w-7 h-7 mb-2 text-muted-foreground" />
+                    <p className="text-sm font-medium mb-1">Paste a screenshot</p>
+                    <p className="text-xs text-muted-foreground mb-4">Press <kbd className="px-1.5 py-0.5 rounded bg-muted text-foreground text-[10px]">Ctrl/⌘ + V</kbd> anywhere, or drag an image here</p>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="secondary" size="sm" onClick={pasteFromClipboard}>
+                        <ClipboardPaste className="w-3.5 h-3.5 mr-1.5" />Paste from clipboard
+                      </Button>
+                      <label>
+                        <Button type="button" variant="outline" size="sm" asChild>
+                          <span><Upload className="w-3.5 h-3.5 mr-1.5" />Upload file</span>
+                        </Button>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*,.csv,.txt,.tsv"
+                          disabled={busy}
+                          onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+                        />
+                      </label>
+                    </div>
                   </>
                 )}
-                <input
-                  type="file"
-                  className="hidden"
-                  accept="image/*,.csv,.txt,.tsv"
-                  disabled={busy}
-                  onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-                />
-              </label>
+              </div>
               <div className="text-center text-xs text-muted-foreground">or</div>
               <Textarea
                 placeholder="Paste a list of names (one per line, or from Excel/Word)…"
