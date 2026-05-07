@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, ArrowRight, Mic, Square, Image as ImageIcon, FileText, Paperclip, Loader2, Trash2, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Mic, Square, Image as ImageIcon, FileText, Paperclip, Loader2, Trash2, Sparkles, Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
