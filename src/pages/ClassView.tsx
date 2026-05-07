@@ -178,13 +178,25 @@ export default function ClassView() {
         </TabsList>
 
         <TabsContent value="students" className="mt-6">
-          <p className="text-sm text-muted-foreground mb-3">Click the pencil to edit a student's name or set their gender (M/F) — used for correct pronouns in generated comments.</p>
+          <p className="text-sm text-muted-foreground mb-3">
+            Click the pencil to edit a student's name or set their gender (M/F). Cards are colour-coded by note coverage:
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500 mx-1.5 align-middle" />no notes,
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 mx-1.5 align-middle" />some notes but missing key elements,
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 mx-1.5 align-middle" />all key elements covered.
+          </p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
             {students.map((s) => {
               const gender = s.overrides?.gender;
               const isEditing = editingId === s.id;
+              const cov = assessCoverage(noteText[s.id] || "");
+              const cardClass =
+                cov.status === "none"
+                  ? "border-red-500/60 bg-red-500/5"
+                  : cov.status === "partial"
+                  ? "border-amber-500/60 bg-amber-500/5"
+                  : "border-emerald-500/50 bg-emerald-500/5";
               return (
-                <Card key={s.id} className="p-3 hover:shadow-elevated transition-shadow group">
+                <Card key={s.id} className={`p-3 hover:shadow-elevated transition-shadow group border ${cardClass}`}>
                   {isEditing ? (
                     <div className="flex items-center gap-2">
                       <Input
@@ -220,6 +232,37 @@ export default function ClassView() {
                   ) : (
                     <div className="flex items-center gap-2">
                       <div className="flex-1 min-w-0 font-display px-1 truncate">{s.name}</div>
+                      {cov.status !== "ok" && (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              className={
+                                "inline-flex items-center justify-center h-7 w-7 rounded-md " +
+                                (cov.status === "none"
+                                  ? "text-red-600 hover:bg-red-500/10"
+                                  : "text-amber-600 hover:bg-amber-500/10")
+                              }
+                              title="Notes coverage warning"
+                            >
+                              <AlertTriangle className="w-4 h-4" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-72 text-sm">
+                            <p className="font-medium mb-1">
+                              {cov.status === "none" ? "No notes saved yet" : "Consider adding…"}
+                            </p>
+                            {cov.status === "none" ? (
+                              <p className="text-muted-foreground">Add some observations before generating a comment so it's based on real evidence.</p>
+                            ) : (
+                              <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
+                                {cov.missing.map((m) => <li key={m}>{m}</li>)}
+                              </ul>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-2">You can still generate a comment — this is just a heads-up.</p>
+                          </PopoverContent>
+                        </Popover>
+                      )}
                       <span
                         className={
                           "inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-md text-xs font-medium border " +
@@ -242,7 +285,7 @@ export default function ClassView() {
                       Open notes →
                     </Link>
                     <p className="text-xs text-muted-foreground">
-                      {counts[s.id] || 0} {(counts[s.id] || 0) === 1 ? "note" : "notes"}
+                      {cov.status === "none" ? "no notes" : cov.status === "partial" ? "missing elements" : "looks complete"}
                     </p>
                   </div>
                 </Card>
