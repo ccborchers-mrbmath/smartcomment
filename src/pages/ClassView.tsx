@@ -37,10 +37,14 @@ export default function ClassView() {
       setStudents((s ?? []) as Student[]);
       const ids = (s ?? []).map((x) => x.id);
       if (ids.length) {
-        const { data: ins } = await supabase.from("student_inputs").select("student_id").in("student_id", ids);
-        const cnt: Record<string, number> = {};
-        (ins ?? []).forEach((i) => { cnt[i.student_id] = (cnt[i.student_id] || 0) + 1; });
-        setCounts(cnt);
+        const { data: ins } = await supabase.from("student_inputs").select("student_id, text, transcript").in("student_id", ids);
+        const txt: Record<string, string> = {};
+        (ins ?? []).forEach((i: any) => {
+          const body = (i.transcript || i.text || "").trim();
+          if (!body) return;
+          txt[i.student_id] = (txt[i.student_id] ? txt[i.student_id] + "\n" : "") + body;
+        });
+        setNoteText(txt);
       }
     })();
   }, [id]);
