@@ -20,7 +20,7 @@ export default function ClassView() {
   const navigate = useNavigate();
   const [klass, setKlass] = useState<Klass | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [noteText, setNoteText] = useState<Record<string, string>>({});
   const [newStudent, setNewStudent] = useState("");
   const [reqs, setReqs] = useState<any>({});
   const [savingReqs, setSavingReqs] = useState(false);
