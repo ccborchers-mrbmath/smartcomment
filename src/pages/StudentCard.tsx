@@ -317,8 +317,9 @@ export default function StudentCard() {
                       {editingId === i.id ? (
                         <>
                           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={async () => {
-                            const field = i.transcript !== null && i.transcript !== undefined && i.type !== "file" ? "transcript" : "text";
-                            const { error } = await supabase.from("student_inputs").update({ [field]: editText }).eq("id", i.id);
+                            const useTranscript = i.transcript !== null && i.transcript !== undefined && i.type !== "file";
+                            const update = useTranscript ? { transcript: editText } : { text: editText };
+                            const { error } = await supabase.from("student_inputs").update(update).eq("id", i.id);
                             if (error) { toast.error(error.message); return; }
                             setEditingId(null);
                             toast.success("Saved");
