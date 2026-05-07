@@ -39,6 +39,8 @@ export default function StudentCard() {
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
