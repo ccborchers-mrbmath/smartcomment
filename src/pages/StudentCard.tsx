@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, ArrowRight, Mic, Square, Image as ImageIcon, FileText, Paperclip, Loader2, Trash2, Sparkles, Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
+import ImageCropDialog from "@/components/ImageCropDialog";
 
 type Student = { id: string; name: string; class_id: string; overrides: any };
 type Input = {
@@ -41,6 +42,7 @@ export default function StudentCard() {
   const [generating, setGenerating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  const [pendingCrop, setPendingCrop] = useState<File | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -286,7 +288,7 @@ export default function StudentCard() {
                   <span className="text-sm">Upload handwritten note</span>
                 </>}
                 <input type="file" className="hidden" accept="image/*" capture="environment" disabled={busy}
-                  onChange={(e) => e.target.files?.[0] && uploadHandwriting(e.target.files[0])} />
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingCrop(f); e.target.value = ""; }} />
               </label>
             </TabsContent>
             <TabsContent value="file" className="mt-4">
@@ -352,6 +354,11 @@ export default function StudentCard() {
           )}
         </Card>
       </div>
+      <ImageCropDialog
+        file={pendingCrop}
+        onCancel={() => setPendingCrop(null)}
+        onConfirm={(f) => { setPendingCrop(null); uploadHandwriting(f); }}
+      />
     </AppShell>
   );
 }
