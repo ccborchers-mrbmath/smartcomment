@@ -314,12 +314,37 @@ export default function StudentCard() {
                     <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">{i.type}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(i.created_at), { addSuffix: true })}</span>
+                      {editingId === i.id ? (
+                        <>
+                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={async () => {
+                            const field = i.transcript !== null && i.transcript !== undefined && i.type !== "file" ? "transcript" : "text";
+                            const { error } = await supabase.from("student_inputs").update({ [field]: editText }).eq("id", i.id);
+                            if (error) { toast.error(error.message); return; }
+                            setEditingId(null);
+                            toast.success("Saved");
+                            load();
+                          }}>
+                            <Check className="w-3 h-3" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingId(null)}>
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </>
+                      ) : (
+                        <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => { setEditingId(i.id); setEditText(i.transcript || i.text || ""); }}>
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => deleteInput(i)}>
                         <Trash2 className="w-3 h-3 text-destructive" />
                       </Button>
                     </div>
                   </div>
-                  <p className="text-sm whitespace-pre-wrap">{i.transcript || i.text || "(no text)"}</p>
+                  {editingId === i.id ? (
+                    <Textarea rows={4} value={editText} onChange={(e) => setEditText(e.target.value)} />
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap">{i.transcript || i.text || "(no text)"}</p>
+                  )}
                 </div>
               ))}
             </div>
