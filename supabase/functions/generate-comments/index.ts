@@ -63,7 +63,7 @@ serve(async (req) => {
 
 Voice & style — match the teacher's previous comments below. Be specific, warm, and professional.
 
-${styleText ? `TEACHER'S PREVIOUS COMMENTS (style reference):\n${styleText.slice(0, 6000)}\n\n` : ""}SCHOOL REQUIREMENTS:
+${reqs.policy ? `SCHOOL POLICY (HIGHEST PRIORITY — these rules from the school's official policy document MUST be followed exactly, and override any conflicting guidance below):\n${String(reqs.policy).slice(0, 8000)}\n\n` : ""}${styleText ? `TEACHER'S PREVIOUS COMMENTS (style reference):\n${styleText.slice(0, 6000)}\n\n` : ""}SCHOOL REQUIREMENTS:
 - Tone: ${reqs.tone || "warm and professional"}
 - Structure: ${reqs.structure || "strengths, areas for growth, next steps"}
 - Word range: ${reqs.minWords || 60}–${reqs.maxWords || 120} words
