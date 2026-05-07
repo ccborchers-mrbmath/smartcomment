@@ -288,7 +288,7 @@ export default function StudentCard() {
                   <span className="text-sm">Upload handwritten note</span>
                 </>}
                 <input type="file" className="hidden" accept="image/*" capture="environment" disabled={busy}
-                  onChange={(e) => e.target.files?.[0] && uploadHandwriting(e.target.files[0])} />
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingCrop(f); e.target.value = ""; }} />
               </label>
             </TabsContent>
             <TabsContent value="file" className="mt-4">
