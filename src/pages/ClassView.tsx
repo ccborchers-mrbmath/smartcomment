@@ -133,6 +133,19 @@ export default function ClassView() {
     navigate("/");
   };
 
+  const assessCoverage = (text: string) => {
+    const t = (text || "").toLowerCase();
+    const checks = [
+      { key: "strength", label: "a strength or area of praise", patterns: [/strength/, /excel/, /strong/, /good at/, /talent/, /achiev/, /improv/, /well done/, /praise/, /confiden/, /enthusias/, /positive/, /capable/] },
+      { key: "growth", label: "an area for growth or improvement", patterns: [/growth/, /improve/, /work on/, /develop/, /weakness/, /struggle/, /challeng/, /needs to/, /focus on/, /could/, /should/, /next step/, /target/] },
+      { key: "encourage", label: "encouragement or a next step for the student", patterns: [/encourag/, /keep/, /continue/, /next term/, /push/, /persever/, /aim/, /strive/, /potential/, /effort/] },
+      { key: "subject", label: "subject-specific content (e.g. a topic, skill, or task they did)", patterns: [/lesson/, /class/, /test/, /assignment/, /project/, /essay/, /exam/, /homework/, /task/, /chapter/, /topic/, /unit/, /reading/, /writing/, /math/, /science/, /history/, /art/, /pe\b/, /music/, /experiment/, /presentation/, /quiz/] },
+    ];
+    if (!t.trim()) return { status: "none" as const, missing: checks.map((c) => c.label) };
+    const missing = checks.filter((c) => !c.patterns.some((p) => p.test(t))).map((c) => c.label);
+    return { status: missing.length === 0 ? ("ok" as const) : ("partial" as const), missing };
+  };
+
   if (!klass) return <AppShell><p className="text-muted-foreground">Loading…</p></AppShell>;
 
   return (
