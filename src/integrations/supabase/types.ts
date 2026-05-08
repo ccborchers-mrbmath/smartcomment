@@ -50,6 +50,36 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback: {
+        Row: {
+          category: string
+          created_at: string
+          email: string | null
+          id: string
+          message: string
+          page: string | null
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          message: string
+          page?: string | null
+          user_id?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          message?: string
+          page?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       generated_comments: {
         Row: {
           created_at: string
@@ -311,6 +341,7 @@ export type Database = {
         Args: { _school_id: string; _uid: string }
         Returns: boolean
       }
+      is_super_admin: { Args: { _uid: string }; Returns: boolean }
       school_for_user: { Args: { _uid: string }; Returns: string }
     }
     Enums: {
