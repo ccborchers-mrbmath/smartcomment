@@ -43,7 +43,7 @@ serve(async (req) => {
     // School-wide requirements (matched by user's email domain)
     const emailDomain = user.email?.split("@")[1]?.toLowerCase() || "";
     const { data: school } = emailDomain
-      ? await supabase.from("schools").select("requirements, locked_fields, policy:requirements").eq("domain", emailDomain).maybeSingle()
+      ? await supabase.from("schools").select("requirements, locked_fields").eq("domain", emailDomain).maybeSingle()
       : { data: null as any };
     const { data: inputs } = await supabase
       .from("student_inputs")
