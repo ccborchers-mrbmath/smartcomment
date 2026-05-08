@@ -102,6 +102,23 @@ export default function Requirements() {
         These apply to every class. A class can override any field in its own Requirements tab.
       </p>
 
+      {lockedFields.length > 0 && (
+        <Card className="p-4 max-w-2xl mb-6 border-accent/40 bg-accent/5">
+          <div className="flex items-start gap-2 text-sm">
+            <Lock className="w-4 h-4 mt-0.5 text-accent shrink-0" />
+            <div>
+              <p className="font-medium">Locked by your school ({schoolDomain})</p>
+              <p className="text-muted-foreground mt-1">
+                These fields are set school-wide and can't be changed here:{" "}
+                <span className="font-medium text-foreground">
+                  {lockedFields.map((k) => FIELD_LABELS[k] || k).join(", ")}
+                </span>
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       <Card className="p-6 max-w-2xl space-y-6">
         <div className="space-y-3 border-b pb-6">
           <div>
