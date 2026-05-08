@@ -7,8 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Loader2, Upload, FileText } from "lucide-react";
+import { ArrowLeft, Loader2, Upload, FileText, Lock } from "lucide-react";
 import { toast } from "sonner";
+
+const FIELD_LABELS: Record<string, string> = {
+  policy: "School policy", tone: "Tone", structure: "Structure",
+  minWords: "Min words", maxWords: "Max words", maxChars: "Max chars",
+  pronoun: "Pronoun usage", bannedPhrases: "Banned phrases",
+  mustInclude: "Must include", notes: "Other notes",
+};
 
 export default function Requirements() {
   const navigate = useNavigate();
@@ -16,18 +23,25 @@ export default function Requirements() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [schoolReqs, setSchoolReqs] = useState<any>({});
+  const [lockedFields, setLockedFields] = useState<string[]>([]);
+  const [schoolDomain, setSchoolDomain] = useState<string>("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const isLocked = (k: string) => lockedFields.includes(k);
 
   useEffect(() => {
     (async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
-      const { data } = await supabase
-        .from("teacher_defaults")
-        .select("requirements")
-        .eq("teacher_id", u.user.id)
-        .maybeSingle();
+      const domain = u.user.email?.split("@")[1]?.toLowerCase() || "";
+      setSchoolDomain(domain);
+      const [{ data }, { data: s }] = await Promise.all([
+        supabase.from("teacher_defaults").select("requirements").eq("teacher_id", u.user.id).maybeSingle(),
+        domain ? supabase.from("schools").select("requirements, locked_fields").eq("domain", domain).maybeSingle() : Promise.resolve({ data: null } as any),
+      ]);
       setReqs((data?.requirements as any) ?? {});
+      setSchoolReqs(((s as any)?.requirements as any) ?? {});
+      setLockedFields(((s as any)?.locked_fields as any) ?? []);
       setLoading(false);
     })();
   }, []);
