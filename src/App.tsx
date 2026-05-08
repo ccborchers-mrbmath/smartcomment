@@ -12,6 +12,7 @@ import ClassView from "./pages/ClassView";
 import StudentCard from "./pages/StudentCard";
 import StyleBank from "./pages/StyleBank";
 import Requirements from "./pages/Requirements";
+import SchoolRequirements from "./pages/SchoolRequirements";
 import ReviewExport from "./pages/ReviewExport";
 import NotFound from "./pages/NotFound";
 
