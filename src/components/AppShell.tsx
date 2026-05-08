@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Sparkles, BookOpen, LogOut, Library, Settings } from "lucide-react";
+import { Sparkles, BookOpen, LogOut, Library, Settings, School } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
