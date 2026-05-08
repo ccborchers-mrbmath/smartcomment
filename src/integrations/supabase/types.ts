@@ -115,6 +115,62 @@ export type Database = {
         }
         Relationships: []
       }
+      school_admins: {
+        Row: {
+          created_at: string
+          school_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          school_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          school_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_admins_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schools: {
+        Row: {
+          created_at: string
+          domain: string
+          id: string
+          locked_fields: string[]
+          name: string | null
+          requirements: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          id?: string
+          locked_fields?: string[]
+          name?: string | null
+          requirements?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          id?: string
+          locked_fields?: string[]
+          name?: string | null
+          requirements?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       student_inputs: {
         Row: {
           created_at: string
@@ -250,7 +306,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      email_domain: { Args: { _uid: string }; Returns: string }
+      is_school_admin: {
+        Args: { _school_id: string; _uid: string }
+        Returns: boolean
+      }
+      school_for_user: { Args: { _uid: string }; Returns: string }
     }
     Enums: {
       input_type: "voice" | "handwriting" | "typed" | "file"

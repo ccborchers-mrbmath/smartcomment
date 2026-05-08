@@ -40,6 +40,11 @@ serve(async (req) => {
       .select("requirements")
       .eq("teacher_id", user.id)
       .maybeSingle();
+    // School-wide requirements (matched by user's email domain)
+    const emailDomain = user.email?.split("@")[1]?.toLowerCase() || "";
+    const { data: school } = emailDomain
+      ? await supabase.from("schools").select("requirements, locked_fields").eq("domain", emailDomain).maybeSingle()
+      : { data: null as any };
     const { data: inputs } = await supabase
       .from("student_inputs")
       .select("student_id, type, text, transcript, created_at")
@@ -52,10 +57,25 @@ serve(async (req) => {
 
     const classReqs = (cls?.requirements ?? {}) as any;
     const defaultReqs = (defaults?.requirements ?? {}) as any;
-    // Class-level overrides win over teacher-wide defaults; ignore empty/null fields
-    const reqs: any = { ...defaultReqs };
-    for (const [k, v] of Object.entries(classReqs)) {
+    const schoolReqs = ((school as any)?.requirements ?? {}) as any;
+    const lockedFields: string[] = ((school as any)?.locked_fields ?? []) as string[];
+    const schoolPolicyText = schoolReqs.policy as string | undefined;
+
+    // Merge: school -> teacher defaults -> class. Locked school fields can never be overwritten.
+    const reqs: any = { ...schoolReqs };
+    for (const [k, v] of Object.entries(defaultReqs)) {
+      if (lockedFields.includes(k)) continue;
       if (v !== null && v !== undefined && v !== "") reqs[k] = v;
+    }
+    for (const [k, v] of Object.entries(classReqs)) {
+      if (lockedFields.includes(k)) continue;
+      if (v !== null && v !== undefined && v !== "") reqs[k] = v;
+    }
+    // School policy is always prepended (highest priority) regardless of locks
+    if (schoolPolicyText && reqs.policy && reqs.policy !== schoolPolicyText) {
+      reqs.policy = `SCHOOL POLICY (overrides everything below):\n${schoolPolicyText}\n\nADDITIONAL TEACHER POLICY:\n${reqs.policy}`;
+    } else if (schoolPolicyText) {
+      reqs.policy = schoolPolicyText;
     }
     const styleText = (styleSamples ?? []).map((s) => s.text).join("\n\n---\n\n");
 

@@ -12,6 +12,7 @@ import ClassView from "./pages/ClassView";
 import StudentCard from "./pages/StudentCard";
 import StyleBank from "./pages/StyleBank";
 import Requirements from "./pages/Requirements";
+import SchoolRequirements from "./pages/SchoolRequirements";
 import ReviewExport from "./pages/ReviewExport";
 import NotFound from "./pages/NotFound";
 
@@ -33,6 +34,7 @@ const App = () => (
             <Route path="/students/:id" element={<ProtectedRoute><StudentCard /></ProtectedRoute>} />
             <Route path="/style-bank" element={<ProtectedRoute><StyleBank /></ProtectedRoute>} />
             <Route path="/requirements" element={<ProtectedRoute><Requirements /></ProtectedRoute>} />
+            <Route path="/school" element={<ProtectedRoute><SchoolRequirements /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
