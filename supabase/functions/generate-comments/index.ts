@@ -40,11 +40,27 @@ serve(async (req) => {
       .select("requirements")
       .eq("teacher_id", user.id)
       .maybeSingle();
-    // School-wide requirements (matched by user's email domain)
-    const emailDomain = user.email?.split("@")[1]?.toLowerCase() || "";
-    const { data: school } = emailDomain
-      ? await supabase.from("schools").select("requirements, locked_fields").eq("domain", emailDomain).maybeSingle()
-      : { data: null as any };
+    // Global rules: super-admin's (ccborchers@gmail.com) teacher_defaults apply to everyone.
+    // Any field the super-admin has set is locked and cannot be overridden by teacher/class.
+    const SUPER_ADMIN_EMAIL = "ccborchers@gmail.com";
+    const { data: superAdminProfile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("email", SUPER_ADMIN_EMAIL)
+      .maybeSingle();
+    let school: { requirements: any; locked_fields: string[] } | null = null;
+    if (superAdminProfile?.id) {
+      const { data: saDefaults } = await supabase
+        .from("teacher_defaults")
+        .select("requirements")
+        .eq("teacher_id", superAdminProfile.id)
+        .maybeSingle();
+      const saReqs = (saDefaults?.requirements ?? {}) as any;
+      const lockedKeys = Object.entries(saReqs)
+        .filter(([, v]) => v !== null && v !== undefined && v !== "")
+        .map(([k]) => k);
+      school = { requirements: saReqs, locked_fields: lockedKeys };
+    }
     const { data: inputs } = await supabase
       .from("student_inputs")
       .select("student_id, type, text, transcript, created_at")

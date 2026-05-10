@@ -32,9 +32,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <Button variant="ghost" size="sm" asChild>
               <Link to="/requirements"><Settings className="w-4 h-4 mr-1.5" />Requirements</Link>
             </Button>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/school"><School className="w-4 h-4 mr-1.5" />School</Link>
-            </Button>
             <FeedbackDialog />
             {user?.email?.toLowerCase() === "ccborchers@gmail.com" && (
               <Button variant="ghost" size="sm" asChild>
