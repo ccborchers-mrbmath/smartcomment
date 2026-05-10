@@ -164,6 +164,7 @@ export default function StudentCard() {
         type: "handwriting",
         transcript: data?.text ?? "",
         media_path: path,
+        term: activeTerm,
       });
       if (insErr) throw insErr;
       toast.success("Note transcribed");
