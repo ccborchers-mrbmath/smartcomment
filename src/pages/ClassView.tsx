@@ -221,7 +221,12 @@ export default function ClassView() {
             {students.map((s) => {
               const gender = s.overrides?.gender;
               const isEditing = editingId === s.id;
-              const cov = assessCoverage(noteText[s.id] || "");
+              const included = new Set(s.included_terms || TERMS);
+              const includedText = (notesByStudent[s.id] || [])
+                .filter((n) => included.has(n.term))
+                .map((n) => n.body)
+                .join("\n");
+              const cov = assessCoverage(includedText);
               const cardClass =
                 cov.status === "none"
                   ? "border-red-500/60 bg-red-500/5"
