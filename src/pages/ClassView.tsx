@@ -178,9 +178,20 @@ export default function ClassView() {
       <div className="flex items-end justify-between mb-8 gap-4 flex-wrap">
         <div>
           <h1 className="font-display text-4xl">{klass.name}</h1>
-          <p className="text-muted-foreground mt-1">
-            {[klass.year_grade, klass.subject, klass.term].filter(Boolean).join(" · ") || "—"}
-          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <p className="text-muted-foreground">
+              {[klass.year_grade, klass.subject].filter(Boolean).join(" · ") || "—"}
+            </p>
+            {(klass.year_grade || klass.subject) && <span className="text-muted-foreground">·</span>}
+            <Select value={klass.active_term ?? undefined} onValueChange={setActiveTerm}>
+              <SelectTrigger className="h-8 w-[160px]">
+                <SelectValue placeholder="Select term" />
+              </SelectTrigger>
+              <SelectContent>
+                {TERMS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" asChild>
