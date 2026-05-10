@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       classes: {
         Row: {
+          active_term: string | null
           created_at: string
           id: string
           name: string
@@ -27,6 +28,7 @@ export type Database = {
           year_grade: string | null
         }
         Insert: {
+          active_term?: string | null
           created_at?: string
           id?: string
           name: string
@@ -38,6 +40,7 @@ export type Database = {
           year_grade?: string | null
         }
         Update: {
+          active_term?: string | null
           created_at?: string
           id?: string
           name?: string
@@ -209,6 +212,7 @@ export type Database = {
           media_url: string | null
           student_id: string
           teacher_id: string
+          term: string | null
           text: string | null
           transcript: string | null
           type: Database["public"]["Enums"]["input_type"]
@@ -220,6 +224,7 @@ export type Database = {
           media_url?: string | null
           student_id: string
           teacher_id: string
+          term?: string | null
           text?: string | null
           transcript?: string | null
           type: Database["public"]["Enums"]["input_type"]
@@ -231,6 +236,7 @@ export type Database = {
           media_url?: string | null
           student_id?: string
           teacher_id?: string
+          term?: string | null
           text?: string | null
           transcript?: string | null
           type?: Database["public"]["Enums"]["input_type"]
@@ -250,6 +256,7 @@ export type Database = {
           class_id: string
           created_at: string
           id: string
+          included_terms: string[]
           name: string
           overrides: Json
           position: number
@@ -260,6 +267,7 @@ export type Database = {
           class_id: string
           created_at?: string
           id?: string
+          included_terms?: string[]
           name: string
           overrides?: Json
           position?: number
@@ -270,6 +278,7 @@ export type Database = {
           class_id?: string
           created_at?: string
           id?: string
+          included_terms?: string[]
           name?: string
           overrides?: Json
           position?: number
