@@ -34,7 +34,7 @@ export default function NewClass() {
   const [name, setName] = useState("");
   const [yearGrade, setYearGrade] = useState("");
   const [subject, setSubject] = useState("");
-  const [term, setTerm] = useState("");
+  
   const [pasted, setPasted] = useState("");
   const [names, setNames] = useState<string[]>([]);
   const [genders, setGenders] = useState<("male" | "female" | null)[]>([]);
