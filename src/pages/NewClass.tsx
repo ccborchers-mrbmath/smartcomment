@@ -244,10 +244,23 @@ export default function NewClass() {
                     <ImageIcon className="w-7 h-7 mb-2 text-muted-foreground" />
                     <p className="text-sm font-medium mb-1">Paste a screenshot</p>
                     <p className="text-xs text-muted-foreground mb-4">Press <kbd className="px-1.5 py-0.5 rounded bg-muted text-foreground text-[10px]">Ctrl/Cmd + V</kbd> anywhere, or drag an image here</p>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2 justify-center">
                       <Button type="button" variant="secondary" size="sm" onClick={pasteFromClipboard}>
                         <ClipboardPaste className="w-3.5 h-3.5 mr-1.5" />Paste from clipboard
                       </Button>
+                      <label>
+                        <Button type="button" variant="default" size="sm" asChild>
+                          <span><Camera className="w-3.5 h-3.5 mr-1.5" />Take photo</span>
+                        </Button>
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          capture="environment"
+                          disabled={busy}
+                          onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+                        />
+                      </label>
                       <label>
                         <Button type="button" variant="outline" size="sm" asChild>
                           <span><Upload className="w-3.5 h-3.5 mr-1.5" />Upload file</span>
