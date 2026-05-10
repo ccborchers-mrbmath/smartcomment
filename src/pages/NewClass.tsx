@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, Loader2, X, Plus, ArrowLeft, ClipboardPaste, ImageIcon, Camera } from "lucide-react";
 import { toast } from "sonner";
+import ImageCropDialog from "@/components/ImageCropDialog";
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -38,6 +39,7 @@ export default function NewClass() {
   const [names, setNames] = useState<string[]>([]);
   const [genders, setGenders] = useState<("male" | "female" | null)[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [pendingCrop, setPendingCrop] = useState<File | null>(null);
 
   const addNames = (extracted: string[]) => {
     setNames((prev) => [...prev, ...extracted]);
@@ -258,7 +260,7 @@ export default function NewClass() {
                           accept="image/*"
                           capture="environment"
                           disabled={busy}
-                          onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingCrop(f); e.currentTarget.value = ""; }}
                         />
                       </label>
                       <label>
@@ -270,7 +272,13 @@ export default function NewClass() {
                           className="hidden"
                           accept="image/*,.csv,.txt,.tsv"
                           disabled={busy}
-                          onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            if (f.type.startsWith("image/")) setPendingCrop(f);
+                            else handleFile(f);
+                            e.currentTarget.value = "";
+                          }}
                         />
                       </label>
                     </div>
@@ -337,6 +345,11 @@ export default function NewClass() {
           )}
         </Card>
       </div>
+      <ImageCropDialog
+        file={pendingCrop}
+        onCancel={() => setPendingCrop(null)}
+        onConfirm={(f) => { setPendingCrop(null); handleFile(f); }}
+      />
     </AppShell>
   );
 }
