@@ -24,7 +24,7 @@ export default function ClassView() {
   const navigate = useNavigate();
   const [klass, setKlass] = useState<Klass | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
-  const [noteText, setNoteText] = useState<Record<string, string>>({});
+  const [notesByStudent, setNotesByStudent] = useState<Record<string, { term: string; body: string }[]>>({});
   const [newStudent, setNewStudent] = useState("");
   const [reqs, setReqs] = useState<any>({});
   const [savingReqs, setSavingReqs] = useState(false);
@@ -37,21 +37,39 @@ export default function ClassView() {
       const { data: c } = await supabase.from("classes").select("*").eq("id", id).single();
       setKlass(c);
       setReqs(c?.requirements ?? {});
-      const { data: s } = await supabase.from("students").select("id, name, position, overrides").eq("class_id", id).order("position");
+      const { data: s } = await supabase.from("students").select("id, name, position, overrides, included_terms").eq("class_id", id).order("position");
       setStudents((s ?? []) as Student[]);
       const ids = (s ?? []).map((x) => x.id);
       if (ids.length) {
-        const { data: ins } = await supabase.from("student_inputs").select("student_id, text, transcript").in("student_id", ids);
-        const txt: Record<string, string> = {};
+        const { data: ins } = await supabase.from("student_inputs").select("student_id, text, transcript, term").in("student_id", ids);
+        const grouped: Record<string, { term: string; body: string }[]> = {};
         (ins ?? []).forEach((i: any) => {
           const body = (i.transcript || i.text || "").trim();
           if (!body) return;
-          txt[i.student_id] = (txt[i.student_id] ? txt[i.student_id] + "\n" : "") + body;
+          (grouped[i.student_id] ||= []).push({ term: i.term || "2026 Term 2", body });
         });
-        setNoteText(txt);
+        setNotesByStudent(grouped);
       }
     })();
   }, [id]);
+
+  const setActiveTerm = async (term: string) => {
+    if (!klass) return;
+    setKlass({ ...klass, active_term: term });
+    const { error } = await supabase.from("classes").update({ active_term: term }).eq("id", klass.id);
+    if (error) toast.error(error.message);
+  };
+
+  const toggleIncludedTerm = async (sid: string, term: string, on: boolean) => {
+    const stu = students.find((s) => s.id === sid);
+    if (!stu) return;
+    const next = on
+      ? Array.from(new Set([...(stu.included_terms || []), term]))
+      : (stu.included_terms || []).filter((t) => t !== term);
+    setStudents((p) => p.map((s) => (s.id === sid ? { ...s, included_terms: next } : s)));
+    const { error } = await supabase.from("students").update({ included_terms: next }).eq("id", sid);
+    if (error) toast.error(error.message);
+  };
 
   const addStudent = async () => {
     if (!newStudent.trim() || !klass) return;
