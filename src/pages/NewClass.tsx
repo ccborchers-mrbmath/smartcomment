@@ -345,6 +345,11 @@ export default function NewClass() {
           )}
         </Card>
       </div>
+      <ImageCropDialog
+        file={pendingCrop}
+        onCancel={() => setPendingCrop(null)}
+        onConfirm={(f) => { setPendingCrop(null); handleFile(f); }}
+      />
     </AppShell>
   );
 }
