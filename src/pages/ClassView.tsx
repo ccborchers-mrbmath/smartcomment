@@ -219,6 +219,7 @@ export default function ClassView() {
                 );
               })}
             </div>
+            <p className="text-[10px] text-muted-foreground mt-1.5 max-w-[220px] leading-tight">Used when generating comments. Doesn't affect which notes are shown.</p>
           </div>
         </div>
       </div>
