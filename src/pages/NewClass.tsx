@@ -174,7 +174,7 @@ export default function NewClass() {
       const teacherId = u.user!.id;
       const { data: cls, error } = await supabase
         .from("classes")
-        .insert({ teacher_id: teacherId, name, year_grade: yearGrade || null, subject: subject || null, term: term || null })
+        .insert({ teacher_id: teacherId, name, year_grade: yearGrade || null, subject: subject || null, active_term: '2026 Term 1' })
         .select()
         .single();
       if (error) throw error;
