@@ -266,7 +266,8 @@ export default function StudentCard() {
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Card className="p-6">
-          <h2 className="font-display text-xl mb-4">Add input</h2>
+          <h2 className="font-display text-xl mb-1">Add input</h2>
+          <p className="text-xs text-muted-foreground mb-4">Recording for: <span className="font-medium text-foreground">{activeTerm}</span></p>
           <Tabs defaultValue="typed">
             <TabsList className="grid grid-cols-4 w-full">
               <TabsTrigger value="typed"><FileText className="w-3.5 h-3.5" /></TabsTrigger>
