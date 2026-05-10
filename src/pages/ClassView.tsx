@@ -10,10 +10,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, ArrowRight, Plus, Settings, Sparkles, Loader2, Trash2, Pencil, Check, AlertTriangle } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
-type Klass = { id: string; name: string; year_grade: string | null; subject: string | null; term: string | null; requirements: any };
-type Student = { id: string; name: string; position: number; overrides: any };
+const TERMS = ["2026 Term 1", "2026 Term 2", "2026 Term 3", "2026 Term 4"] as const;
+
+type Klass = { id: string; name: string; year_grade: string | null; subject: string | null; term: string | null; active_term: string | null; requirements: any };
+type Student = { id: string; name: string; position: number; overrides: any; included_terms: string[] };
 
 export default function ClassView() {
   const { id } = useParams<{ id: string }>();
