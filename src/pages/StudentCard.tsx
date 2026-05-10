@@ -19,6 +19,7 @@ type Input = {
   transcript: string | null;
   media_url: string | null;
   media_path: string | null;
+  term: string | null;
   created_at: string;
 };
 
