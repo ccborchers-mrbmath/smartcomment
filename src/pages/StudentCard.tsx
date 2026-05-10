@@ -58,6 +58,8 @@ export default function StudentCard() {
         .eq("class_id", s.class_id)
         .order("position", { ascending: true });
       setSiblings((sibs ?? []) as { id: string }[]);
+      const { data: cls } = await supabase.from("classes").select("active_term").eq("id", s.class_id).single();
+      if (cls?.active_term) setActiveTerm(cls.active_term);
     }
     const { data: ins } = await supabase
       .from("student_inputs")
