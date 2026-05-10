@@ -28,7 +28,7 @@ serve(async (req) => {
     // Load students + verify ownership
     const { data: students } = await supabase
       .from("students")
-      .select("id, name, class_id, overrides")
+      .select("id, name, class_id, overrides, included_terms")
       .in("id", studentIds);
     if (!students || students.length === 0) {
       return new Response(JSON.stringify({ error: "No students found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
