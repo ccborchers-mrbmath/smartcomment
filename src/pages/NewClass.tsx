@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, Loader2, X, Plus, ArrowLeft, ClipboardPaste, ImageIcon } from "lucide-react";
+import { Upload, Loader2, X, Plus, ArrowLeft, ClipboardPaste, ImageIcon, Camera } from "lucide-react";
 import { toast } from "sonner";
 
 const fileToBase64 = (file: File): Promise<string> =>
