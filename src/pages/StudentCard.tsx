@@ -323,53 +323,85 @@ export default function StudentCard() {
         </Card>
 
         <Card className="p-6">
-          <h2 className="font-display text-xl mb-4">Notes ({inputs.length})</h2>
-          {inputs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No notes yet — add the first one.</p>
-          ) : (
-            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
-              {inputs.map((i) => (
-                <div key={i.id} className="border border-border rounded-lg p-3 group">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">{i.type}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(i.created_at), { addSuffix: true })}</span>
-                      {editingId === i.id ? (
-                        <>
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={async () => {
-                            const useTranscript = i.transcript !== null && i.transcript !== undefined && i.type !== "file";
-                            const update = useTranscript ? { transcript: editText } : { text: editText };
-                            const { error } = await supabase.from("student_inputs").update(update).eq("id", i.id);
-                            if (error) { toast.error(error.message); return; }
-                            setEditingId(null);
-                            toast.success("Saved");
-                            load();
-                          }}>
-                            <Check className="w-3 h-3" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingId(null)}>
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </>
-                      ) : (
-                        <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => { setEditingId(i.id); setEditText(i.transcript || i.text || ""); }}>
-                          <Pencil className="w-3 h-3" />
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => deleteInput(i)}>
-                        <Trash2 className="w-3 h-3 text-destructive" />
-                      </Button>
-                    </div>
-                  </div>
-                  {editingId === i.id ? (
-                    <Textarea rows={4} value={editText} onChange={(e) => setEditText(e.target.value)} />
-                  ) : (
-                    <p className="text-sm whitespace-pre-wrap">{i.transcript || i.text || "(no text)"}</p>
-                  )}
+          {(() => {
+            const visibleInputs = showAllTerms
+              ? inputs
+              : inputs.filter((i) => (i.term ?? "2026 Term 2") === activeTerm);
+            const hiddenCount = inputs.length - visibleInputs.length;
+            return (
+              <>
+                <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+                  <h2 className="font-display text-xl">
+                    Notes ({visibleInputs.length}{showAllTerms ? "" : ` · ${activeTerm}`})
+                  </h2>
+                  <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={showAllTerms}
+                      onChange={(e) => setShowAllTerms(e.target.checked)}
+                      className="h-3.5 w-3.5"
+                    />
+                    Show all terms{hiddenCount > 0 && !showAllTerms ? ` (${hiddenCount} hidden)` : ""}
+                  </label>
                 </div>
-              ))}
-            </div>
-          )}
+                {visibleInputs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {inputs.length === 0
+                      ? "No notes yet — add the first one."
+                      : `No notes for ${activeTerm} yet. Tick "Show all terms" to see notes from other terms.`}
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+                    {visibleInputs.map((i) => (
+                      <div key={i.id} className="border border-border rounded-lg p-3 group">
+                        <div className="flex items-center justify-between mb-1.5 gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">{i.type}</span>
+                            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground">
+                              {i.term ?? "2026 Term 2"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(i.created_at), { addSuffix: true })}</span>
+                            {editingId === i.id ? (
+                              <>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={async () => {
+                                  const useTranscript = i.transcript !== null && i.transcript !== undefined && i.type !== "file";
+                                  const update = useTranscript ? { transcript: editText } : { text: editText };
+                                  const { error } = await supabase.from("student_inputs").update(update).eq("id", i.id);
+                                  if (error) { toast.error(error.message); return; }
+                                  setEditingId(null);
+                                  toast.success("Saved");
+                                  load();
+                                }}>
+                                  <Check className="w-3 h-3" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingId(null)}>
+                                  <X className="w-3 h-3" />
+                                </Button>
+                              </>
+                            ) : (
+                              <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => { setEditingId(i.id); setEditText(i.transcript || i.text || ""); }}>
+                                <Pencil className="w-3 h-3" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => deleteInput(i)}>
+                              <Trash2 className="w-3 h-3 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                        {editingId === i.id ? (
+                          <Textarea rows={4} value={editText} onChange={(e) => setEditText(e.target.value)} />
+                        ) : (
+                          <p className="text-sm whitespace-pre-wrap">{i.transcript || i.text || "(no text)"}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </Card>
       </div>
       <ImageCropDialog
