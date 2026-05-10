@@ -219,6 +219,7 @@ export default function ClassView() {
                 );
               })}
             </div>
+            <p className="text-[10px] text-muted-foreground mt-1.5 max-w-[220px] leading-tight">Used when generating comments. Doesn't affect which notes are shown.</p>
           </div>
         </div>
       </div>
@@ -240,9 +241,9 @@ export default function ClassView() {
             {students.map((s) => {
               const gender = s.overrides?.gender;
               const isEditing = editingId === s.id;
-              const included = new Set(s.included_terms || TERMS);
+              const activeTerm = klass.active_term ?? "2026 Term 2";
               const includedText = (notesByStudent[s.id] || [])
-                .filter((n) => included.has(n.term))
+                .filter((n) => n.term === activeTerm)
                 .map((n) => n.body)
                 .join("\n");
               const cov = assessCoverage(includedText);

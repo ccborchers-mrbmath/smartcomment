@@ -1,49 +1,34 @@
 ## Goal
 
-Make a class reusable across school terms. Move the term selector into the class page itself, tag every note with the term it was written in, and let the teacher choose which terms' notes feed each student's report comment.
+Right now the active-term dropdown changes which term new notes get tagged with, but nothing on screen reacts to it. This plan makes the active term the lens through which notes are viewed, while keeping all existing data intact.
 
 ## Data safety
 
-Migration is additive and backfills existing rows so current behaviour is preserved:
-
-- `classes.term` (the free-text field set on creation) stays untouched — just hidden from the New class form.
-- New `classes.active_term` — backfilled to **`2026 Term 2`** for every existing class.
-- New `student_inputs.term` — backfilled to **`2026 Term 2`** for every existing note.
-- New `students.included_terms` — defaults to **all four terms ticked**, so existing classes generate comments from the same notes as before.
-
-Nothing is deleted, dropped, or rewritten destructively.
+No schema changes. No data migrations. Every existing note already has a `term` value (`2026 Term 2` after the previous backfill), so filtering and badges work immediately on existing data.
 
 ## Changes
 
-### 1. Database (additive migration)
+### 1. Student notes page (`src/pages/StudentCard.tsx`)
 
-- `classes`: add `active_term text`. Backfill existing rows to `'2026 Term 2'`.
-- `student_inputs`: add `term text`. Backfill every existing row to `'2026 Term 2'`.
-- `students`: add `included_terms text[] not null default array['2026 Term 1','2026 Term 2','2026 Term 3','2026 Term 4']`. Backfill existing rows to the same default.
-- Keep legacy `classes.term` column.
+- Load the `term` field on each note (currently `select("*")` already returns it; add it to the `Input` type).
+- Show a small term badge on every note row (e.g. `2026 Term 2`) next to the existing type label and timestamp.
+- Default the notes list to **only** notes whose `term` matches the class's `active_term`.
+- Add a **"Show all terms"** toggle (switch or checkbox) above the notes list. When on, all notes are shown regardless of term, each still showing its term badge.
+- Show a small "Recording for: 2026 Term X" hint above the input tabs so the teacher knows which term the next note will be stamped with.
+- Show an empty state like "No notes for 2026 Term X yet" when the filtered list is empty but other terms have notes (with a hint to flip "Show all terms").
 
-### 2. New class form (`src/pages/NewClass.tsx`)
+### 2. Class page coverage dots (`src/pages/ClassView.tsx`)
 
-- Remove the "Term" input. Stop sending `term` on insert. Teacher picks the term inside the class.
+- Change the per-student coverage calculation to use **only notes whose `term` equals the class's `active_term`** (instead of the union of `included_terms`).
+- The "Include notes from:" checkboxes keep their current job — they only control which terms feed the AI when generating comments. (Add a one-line helper text under that block making this clear, e.g. "Used when generating comments. Doesn't affect which notes are shown.")
+- The card colour now answers: "Do I have enough notes for the term I'm currently working in?" — which matches how a teacher actually uses the page term-by-term.
 
-### 3. Class page (`src/pages/ClassView.tsx`)
+### 3. No backend / edge-function changes
 
-- Replace the static "Term X 2026" text in the header with a `Select` dropdown: `2026 Term 1` … `2026 Term 4`. Selection writes to `classes.active_term`.
-- The active term is the term stamped on any new note created while it is selected.
-- On each student card add a small block:
-  - Heading: **"Include notes from:"**
-  - Four checkboxes bound to `students.included_terms`. Persists on toggle.
-- Coverage colour (red/amber/green) recomputed using only notes whose `term` is in `included_terms`.
+`generate-comments` already filters by `included_terms`, so generation behaviour is unchanged.
 
-### 4. Note entry (`src/pages/StudentCard.tsx`)
+## Out of scope (for later)
 
-- When inserting a `student_inputs` row (text, audio transcript, handwriting), include `term: <class.active_term>` (fallback `'2026 Term 2'` if unset).
-
-### 5. Comment generation (`supabase/functions/generate-comments/index.ts`)
-
-- When loading a student's `student_inputs`, filter by `term in (student.included_terms)`.
-
-## Out of scope
-
-- Legacy `classes.term` column stays in the database for safety; UI just stops reading/writing it.
-- No changes to auth, RLS, or global-rules behaviour.
+- The bigger "learning journal" vision (richer input types, more report formats). Happy to plan that separately once this term-aware view feels right.
+- Per-note term editing (changing a note's term after the fact). Can be added later if useful — for now the badge is read-only.
+- Legacy `classes.term` column stays untouched.
