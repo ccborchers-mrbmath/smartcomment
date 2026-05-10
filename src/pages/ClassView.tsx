@@ -77,7 +77,7 @@ export default function ClassView() {
     const { data, error } = await supabase
       .from("students")
       .insert({ class_id: klass.id, teacher_id: u.user!.id, name: newStudent.trim(), position: students.length })
-      .select("id, name, position, overrides")
+      .select("id, name, position, overrides, included_terms")
       .single();
     if (error) { toast.error(error.message); return; }
     setStudents((p) => [...p, data as Student]);
