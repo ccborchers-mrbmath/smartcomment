@@ -192,14 +192,34 @@ export default function ClassView() {
             </Select>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link to={`/classes/${klass.id}/review`}>Review comments <ArrowRight className="w-4 h-4 ml-1.5" /></Link>
-          </Button>
-          <Button onClick={generateAll} disabled={generating}>
-            {generating ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
-            Generate all
-          </Button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex gap-2">
+            <Button variant="outline" asChild>
+              <Link to={`/classes/${klass.id}/review`}>Review comments <ArrowRight className="w-4 h-4 ml-1.5" /></Link>
+            </Button>
+            <Button onClick={generateAll} disabled={generating}>
+              {generating ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
+              Generate all
+            </Button>
+          </div>
+          <div className="rounded-md border border-border bg-card/50 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">Include notes from:</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              {TERMS.map((t) => {
+                const checked = (students[0]?.included_terms ?? TERMS).includes(t);
+                return (
+                  <label key={t} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                    <Checkbox
+                      checked={checked}
+                      disabled={students.length === 0}
+                      onCheckedChange={(v) => toggleClassIncludedTerm(t, !!v)}
+                    />
+                    <span>{t}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
