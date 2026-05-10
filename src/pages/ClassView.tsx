@@ -60,14 +60,13 @@ export default function ClassView() {
     if (error) toast.error(error.message);
   };
 
-  const toggleIncludedTerm = async (sid: string, term: string, on: boolean) => {
-    const stu = students.find((s) => s.id === sid);
-    if (!stu) return;
+  const toggleClassIncludedTerm = async (term: string, on: boolean) => {
+    if (!klass || students.length === 0) return;
     const next = on
-      ? Array.from(new Set([...(stu.included_terms || []), term]))
-      : (stu.included_terms || []).filter((t) => t !== term);
-    setStudents((p) => p.map((s) => (s.id === sid ? { ...s, included_terms: next } : s)));
-    const { error } = await supabase.from("students").update({ included_terms: next }).eq("id", sid);
+      ? Array.from(new Set([...(students[0].included_terms || []), term]))
+      : (students[0].included_terms || []).filter((t) => t !== term);
+    setStudents((p) => p.map((s) => ({ ...s, included_terms: next })));
+    const { error } = await supabase.from("students").update({ included_terms: next }).eq("class_id", klass.id);
     if (error) toast.error(error.message);
   };
 
@@ -193,14 +192,34 @@ export default function ClassView() {
             </Select>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link to={`/classes/${klass.id}/review`}>Review comments <ArrowRight className="w-4 h-4 ml-1.5" /></Link>
-          </Button>
-          <Button onClick={generateAll} disabled={generating}>
-            {generating ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
-            Generate all
-          </Button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex gap-2">
+            <Button variant="outline" asChild>
+              <Link to={`/classes/${klass.id}/review`}>Review comments <ArrowRight className="w-4 h-4 ml-1.5" /></Link>
+            </Button>
+            <Button onClick={generateAll} disabled={generating}>
+              {generating ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
+              Generate all
+            </Button>
+          </div>
+          <div className="rounded-md border border-border bg-card/50 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">Include notes from:</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              {TERMS.map((t) => {
+                const checked = (students[0]?.included_terms ?? TERMS).includes(t);
+                return (
+                  <label key={t} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                    <Checkbox
+                      checked={checked}
+                      disabled={students.length === 0}
+                      onCheckedChange={(v) => toggleClassIncludedTerm(t, !!v)}
+                    />
+                    <span>{t}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -325,23 +344,6 @@ export default function ClassView() {
                     <p className="text-xs text-muted-foreground">
                       {cov.status === "none" ? "no notes" : cov.status === "partial" ? "missing elements" : "looks complete"}
                     </p>
-                  </div>
-                  <div className="mt-3 pt-2 border-t border-border/50">
-                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5 px-1">Include notes from:</p>
-                    <div className="grid grid-cols-2 gap-1 px-1">
-                      {TERMS.map((t) => {
-                        const checked = included.has(t);
-                        return (
-                          <label key={t} className="flex items-center gap-1.5 text-xs cursor-pointer">
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={(v) => toggleIncludedTerm(s.id, t, !!v)}
-                            />
-                            <span>{t}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
                   </div>
                 </Card>
               );
