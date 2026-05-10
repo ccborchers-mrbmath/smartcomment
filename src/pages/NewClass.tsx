@@ -210,15 +210,9 @@ export default function NewClass() {
             <Label htmlFor="name">Name *</Label>
             <Input id="name" placeholder="e.g. Year 6 Blue" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="grade">Year / grade</Label>
-              <Input id="grade" placeholder="Year 6" value={yearGrade} onChange={(e) => setYearGrade(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="term">Term</Label>
-              <Input id="term" placeholder="Term 4 2026" value={term} onChange={(e) => setTerm(e.target.value)} />
-            </div>
+          <div>
+            <Label htmlFor="grade">Year / grade</Label>
+            <Input id="grade" placeholder="Year 6" value={yearGrade} onChange={(e) => setYearGrade(e.target.value)} />
           </div>
           <div>
             <Label htmlFor="subject">Subject (optional)</Label>
