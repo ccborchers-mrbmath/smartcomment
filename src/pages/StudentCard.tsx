@@ -34,6 +34,7 @@ export default function StudentCard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [student, setStudent] = useState<Student | null>(null);
+  const [activeTerm, setActiveTerm] = useState<string>("2026 Term 2");
   const [siblings, setSiblings] = useState<{ id: string }[]>([]);
   const [inputs, setInputs] = useState<Input[]>([]);
   const [typed, setTyped] = useState("");
