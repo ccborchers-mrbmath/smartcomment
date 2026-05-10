@@ -1,65 +1,49 @@
-# School-wide requirements by email domain
+## Goal
 
-Let teachers who share a school email domain (e.g. `@ashtonballito.co.za`) inherit a single set of report requirements set by a school admin. Individual teachers and classes can still override fields, but the school policy always wins where the admin marks it as locked.
+Make a class reusable across school terms. Move the term selector into the class page itself, tag every note with the term it was written in, and let the teacher choose which terms' notes feed each student's report comment.
 
-## How it will work for users
+## Data safety
 
-- **School admin** (a designated user for a domain like `ashtonballito.co.za`) sees a new **"School requirements"** page. They upload the school's policy document and fill in tone/structure/word limits/etc — exactly like the existing global requirements page, plus a "lock this field" toggle per field.
-- **Teachers** at that school automatically inherit those settings. On their own *Default requirements* page they see a read-only "School policy" panel at the top showing what's locked by the school, and they can only edit fields the school hasn't locked.
-- **Classes** continue to override per-field as today, but locked school fields cannot be overridden.
-- First user with a given school email domain who is granted admin (see below) becomes the school admin.
+Migration is additive and backfills existing rows so current behaviour is preserved:
 
-## Admin assignment
+- `classes.term` (the free-text field set on creation) stays untouched — just hidden from the New class form.
+- New `classes.active_term` — backfilled to **`2026 Term 2`** for every existing class.
+- New `student_inputs.term` — backfilled to **`2026 Term 2`** for every existing note.
+- New `students.included_terms` — defaults to **all four terms ticked**, so existing classes generate comments from the same notes as before.
 
-Two options for bootstrapping the first admin per domain — I'll go with option A unless you prefer otherwise:
+Nothing is deleted, dropped, or rewritten destructively.
 
-- **A. Self-claim**: the first signed-in user from a domain can click "Claim school admin for ashtonballito.co.za". Once claimed, future claims are blocked; existing admin can promote/demote others from their domain.
-- B. Manual: only you (super-admin) can assign school admins.
+## Changes
 
-## Data model
+### 1. Database (additive migration)
 
-New tables:
+- `classes`: add `active_term text`. Backfill existing rows to `'2026 Term 2'`.
+- `student_inputs`: add `term text`. Backfill every existing row to `'2026 Term 2'`.
+- `students`: add `included_terms text[] not null default array['2026 Term 1','2026 Term 2','2026 Term 3','2026 Term 4']`. Backfill existing rows to the same default.
+- Keep legacy `classes.term` column.
 
-- `schools` — `id`, `domain` (unique, e.g. `ashtonballito.co.za`), `name`, `requirements` jsonb, `locked_fields` text[], `created_at`, `updated_at`.
-- `school_admins` — `school_id`, `user_id`, unique `(school_id, user_id)`. Used for "is this user an admin of this school?" checks.
-- `user_roles` + `app_role` enum (`super_admin`, `school_admin`) — standard separate-table pattern, with a `has_role(uid, role)` SECURITY DEFINER function. Required for safe RLS without recursion.
+### 2. New class form (`src/pages/NewClass.tsx`)
 
-Helper SECURITY DEFINER functions:
-- `school_for_user(uid)` → returns `schools.id` matched by the email domain of `auth.users.email`.
-- `is_school_admin(uid, school_id)` → boolean.
+- Remove the "Term" input. Stop sending `term` on insert. Teacher picks the term inside the class.
 
-RLS:
-- `schools`: any authenticated user can `SELECT` the row matching their own domain (so teachers can read their school's policy). Only school admins of that row can `UPDATE`. Insert restricted to super-admin / self-claim flow.
-- `school_admins`: members of a school can read; only existing admins (or super-admin) can insert/delete.
+### 3. Class page (`src/pages/ClassView.tsx`)
 
-## Requirement merge order (used by `generate-comments`)
+- Replace the static "Term X 2026" text in the header with a `Select` dropdown: `2026 Term 1` … `2026 Term 4`. Selection writes to `classes.active_term`.
+- The active term is the term stamped on any new note created while it is selected.
+- On each student card add a small block:
+  - Heading: **"Include notes from:"**
+  - Four checkboxes bound to `students.included_terms`. Persists on toggle.
+- Coverage colour (red/amber/green) recomputed using only notes whose `term` is in `included_terms`.
 
-1. Start with school requirements (locked + unlocked).
-2. Overlay teacher's `teacher_defaults` — but skip any field listed in `schools.locked_fields`.
-3. Overlay class `requirements` — same lock rule.
-4. Overlay per-student `overrides` — same lock rule.
+### 4. Note entry (`src/pages/StudentCard.tsx`)
 
-The school's `policy` text is always concatenated into the system prompt as the highest-priority block, even if the teacher also has their own policy.
+- When inserting a `student_inputs` row (text, audio transcript, handwriting), include `term: <class.active_term>` (fallback `'2026 Term 2'` if unset).
 
-## Screens
+### 5. Comment generation (`supabase/functions/generate-comments/index.ts`)
 
-1. **`/school`** (admins only) — School requirements editor. Same form as `/requirements` plus per-field 🔒 lock toggle, plus a "School admins" mini-panel to add/remove admins by email (must match domain).
-2. **`/requirements`** (existing) — gains a read-only "Inherited from your school" banner at top listing locked fields; locked fields are disabled in the form.
-3. **Header / Dashboard** — new "School" link visible only to school admins; "Claim school admin" CTA shown to the first user from a domain that has no admin yet.
+- When loading a student's `student_inputs`, filter by `term in (student.included_terms)`.
 
-## Edge function changes
+## Out of scope
 
-- `generate-comments`: load `schools` row by user's email domain, merge per the order above, prepend school policy in the system prompt.
-- New `claim-school-admin` function: validates the caller's email domain, creates the `schools` row if missing, inserts the caller into `school_admins`, refuses if an admin already exists.
-
-## Files to add / change
-
-- DB migration: `schools`, `school_admins`, `user_roles`, `app_role`, helper functions, RLS.
-- New: `src/pages/SchoolRequirements.tsx`, `supabase/functions/claim-school-admin/index.ts`.
-- Edit: `src/pages/Requirements.tsx` (inherited banner + locks), `src/App.tsx` (route), `src/components/AppShell.tsx` (nav link), `supabase/functions/generate-comments/index.ts` (merge + policy).
-
-## Open questions
-
-1. **Admin bootstrap**: option A (self-claim) or B (manual) above?
-2. **Locks**: should locking a field also lock it for class-level overrides, or only for the teacher's personal defaults?
-3. **Policy stacking**: if both school AND teacher upload a policy doc, should we (a) use only the school's, (b) include both with school first, or (c) let the school admin choose?
+- Legacy `classes.term` column stays in the database for safety; UI just stops reading/writing it.
+- No changes to auth, RLS, or global-rules behaviour.
