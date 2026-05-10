@@ -60,14 +60,13 @@ export default function ClassView() {
     if (error) toast.error(error.message);
   };
 
-  const toggleIncludedTerm = async (sid: string, term: string, on: boolean) => {
-    const stu = students.find((s) => s.id === sid);
-    if (!stu) return;
+  const toggleClassIncludedTerm = async (term: string, on: boolean) => {
+    if (!klass || students.length === 0) return;
     const next = on
-      ? Array.from(new Set([...(stu.included_terms || []), term]))
-      : (stu.included_terms || []).filter((t) => t !== term);
-    setStudents((p) => p.map((s) => (s.id === sid ? { ...s, included_terms: next } : s)));
-    const { error } = await supabase.from("students").update({ included_terms: next }).eq("id", sid);
+      ? Array.from(new Set([...(students[0].included_terms || []), term]))
+      : (students[0].included_terms || []).filter((t) => t !== term);
+    setStudents((p) => p.map((s) => ({ ...s, included_terms: next })));
+    const { error } = await supabase.from("students").update({ included_terms: next }).eq("class_id", klass.id);
     if (error) toast.error(error.message);
   };
 
