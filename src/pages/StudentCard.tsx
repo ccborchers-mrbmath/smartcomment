@@ -80,6 +80,7 @@ export default function StudentCard() {
       teacher_id: u.user!.id,
       type: "typed",
       text: typed.trim(),
+      term: activeTerm,
     });
     setBusy(false);
     if (error) { toast.error(error.message); return; }
