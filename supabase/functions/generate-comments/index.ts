@@ -63,7 +63,7 @@ serve(async (req) => {
     }
     const { data: inputs } = await supabase
       .from("student_inputs")
-      .select("student_id, type, text, transcript, created_at")
+      .select("student_id, type, text, transcript, term, created_at")
       .in("student_id", studentIds)
       .order("created_at", { ascending: true });
     const { data: styleSamples } = await supabase
