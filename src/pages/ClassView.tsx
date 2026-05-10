@@ -344,6 +344,7 @@ export default function ClassView() {
                     <p className="text-xs text-muted-foreground">
                       {cov.status === "none" ? "no notes" : cov.status === "partial" ? "missing elements" : "looks complete"}
                     </p>
+                  </div>
                 </Card>
               );
             })}
