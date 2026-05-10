@@ -121,10 +121,12 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
 - Use the first word of the NAME field as the first name.${instruction ? `\n\nADDITIONAL INSTRUCTION: ${instruction}` : ""}`;
 
     const studentBlocks = students.map((s) => {
-      const myInputs = (inputs ?? []).filter((i) => i.student_id === s.id);
-      const notes = myInputs.map((i) => {
+      const allowedTerms: string[] = (s as any).included_terms ?? ["2026 Term 1","2026 Term 2","2026 Term 3","2026 Term 4"];
+      const allowedSet = new Set(allowedTerms);
+      const myInputs = (inputs ?? []).filter((i: any) => i.student_id === s.id && allowedSet.has(i.term ?? "2026 Term 2"));
+      const notes = myInputs.map((i: any) => {
         const body = i.transcript || i.text || "";
-        return `[${i.type}] ${body}`;
+        return `[${i.type}${i.term ? ` · ${i.term}` : ""}] ${body}`;
       }).join("\n");
       const ov = (s.overrides as any) || {};
       const gender = ov.gender;
