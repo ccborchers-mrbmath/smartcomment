@@ -281,13 +281,21 @@ export default function StudentCard() {
               )}
               {busy && <p className="text-sm text-muted-foreground mt-3">Transcribing…</p>}
             </TabsContent>
-            <TabsContent value="hand" className="mt-4">
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-8 cursor-pointer hover:bg-muted/50">
+            <TabsContent value="hand" className="mt-4 space-y-3">
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:bg-muted/50">
                 {busy ? <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /> : <>
-                  <ImageIcon className="w-6 h-6 mb-2 text-muted-foreground" />
-                  <span className="text-sm">Upload handwritten note</span>
+                  <Camera className="w-6 h-6 mb-2 text-muted-foreground" />
+                  <span className="text-sm">Take photo</span>
                 </>}
                 <input type="file" className="hidden" accept="image/*" capture="environment" disabled={busy}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingCrop(f); e.target.value = ""; }} />
+              </label>
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:bg-muted/50">
+                {busy ? <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /> : <>
+                  <ImageIcon className="w-6 h-6 mb-2 text-muted-foreground" />
+                  <span className="text-sm">Upload image from device</span>
+                </>}
+                <input type="file" className="hidden" accept="image/*" disabled={busy}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingCrop(f); e.target.value = ""; }} />
               </label>
             </TabsContent>
