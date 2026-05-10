@@ -190,6 +190,7 @@ export default function StudentCard() {
         type: "file",
         text: file.name,
         media_path: path,
+        term: activeTerm,
       });
       if (insErr) throw insErr;
       toast.success("File attached");
