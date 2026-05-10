@@ -34,6 +34,7 @@ export default function StudentCard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [student, setStudent] = useState<Student | null>(null);
+  const [activeTerm, setActiveTerm] = useState<string>("2026 Term 2");
   const [siblings, setSiblings] = useState<{ id: string }[]>([]);
   const [inputs, setInputs] = useState<Input[]>([]);
   const [typed, setTyped] = useState("");
@@ -57,6 +58,8 @@ export default function StudentCard() {
         .eq("class_id", s.class_id)
         .order("position", { ascending: true });
       setSiblings((sibs ?? []) as { id: string }[]);
+      const { data: cls } = await supabase.from("classes").select("active_term").eq("id", s.class_id).single();
+      if (cls?.active_term) setActiveTerm(cls.active_term);
     }
     const { data: ins } = await supabase
       .from("student_inputs")
@@ -77,6 +80,7 @@ export default function StudentCard() {
       teacher_id: u.user!.id,
       type: "typed",
       text: typed.trim(),
+      term: activeTerm,
     });
     setBusy(false);
     if (error) { toast.error(error.message); return; }
@@ -128,6 +132,7 @@ export default function StudentCard() {
         type: "voice",
         transcript: data?.text ?? "",
         media_path: path,
+        term: activeTerm,
       });
       if (insErr) throw insErr;
       toast.success("Voice note saved");
@@ -159,6 +164,7 @@ export default function StudentCard() {
         type: "handwriting",
         transcript: data?.text ?? "",
         media_path: path,
+        term: activeTerm,
       });
       if (insErr) throw insErr;
       toast.success("Note transcribed");
@@ -184,6 +190,7 @@ export default function StudentCard() {
         type: "file",
         text: file.name,
         media_path: path,
+        term: activeTerm,
       });
       if (insErr) throw insErr;
       toast.success("File attached");

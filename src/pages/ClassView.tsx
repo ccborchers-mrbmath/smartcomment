@@ -10,17 +10,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, ArrowRight, Plus, Settings, Sparkles, Loader2, Trash2, Pencil, Check, AlertTriangle } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
-type Klass = { id: string; name: string; year_grade: string | null; subject: string | null; term: string | null; requirements: any };
-type Student = { id: string; name: string; position: number; overrides: any };
+const TERMS = ["2026 Term 1", "2026 Term 2", "2026 Term 3", "2026 Term 4"] as const;
+
+type Klass = { id: string; name: string; year_grade: string | null; subject: string | null; term: string | null; active_term: string | null; requirements: any };
+type Student = { id: string; name: string; position: number; overrides: any; included_terms: string[] };
 
 export default function ClassView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [klass, setKlass] = useState<Klass | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
-  const [noteText, setNoteText] = useState<Record<string, string>>({});
+  const [notesByStudent, setNotesByStudent] = useState<Record<string, { term: string; body: string }[]>>({});
   const [newStudent, setNewStudent] = useState("");
   const [reqs, setReqs] = useState<any>({});
   const [savingReqs, setSavingReqs] = useState(false);
@@ -33,21 +37,39 @@ export default function ClassView() {
       const { data: c } = await supabase.from("classes").select("*").eq("id", id).single();
       setKlass(c);
       setReqs(c?.requirements ?? {});
-      const { data: s } = await supabase.from("students").select("id, name, position, overrides").eq("class_id", id).order("position");
+      const { data: s } = await supabase.from("students").select("id, name, position, overrides, included_terms").eq("class_id", id).order("position");
       setStudents((s ?? []) as Student[]);
       const ids = (s ?? []).map((x) => x.id);
       if (ids.length) {
-        const { data: ins } = await supabase.from("student_inputs").select("student_id, text, transcript").in("student_id", ids);
-        const txt: Record<string, string> = {};
+        const { data: ins } = await supabase.from("student_inputs").select("student_id, text, transcript, term").in("student_id", ids);
+        const grouped: Record<string, { term: string; body: string }[]> = {};
         (ins ?? []).forEach((i: any) => {
           const body = (i.transcript || i.text || "").trim();
           if (!body) return;
-          txt[i.student_id] = (txt[i.student_id] ? txt[i.student_id] + "\n" : "") + body;
+          (grouped[i.student_id] ||= []).push({ term: i.term || "2026 Term 2", body });
         });
-        setNoteText(txt);
+        setNotesByStudent(grouped);
       }
     })();
   }, [id]);
+
+  const setActiveTerm = async (term: string) => {
+    if (!klass) return;
+    setKlass({ ...klass, active_term: term });
+    const { error } = await supabase.from("classes").update({ active_term: term }).eq("id", klass.id);
+    if (error) toast.error(error.message);
+  };
+
+  const toggleIncludedTerm = async (sid: string, term: string, on: boolean) => {
+    const stu = students.find((s) => s.id === sid);
+    if (!stu) return;
+    const next = on
+      ? Array.from(new Set([...(stu.included_terms || []), term]))
+      : (stu.included_terms || []).filter((t) => t !== term);
+    setStudents((p) => p.map((s) => (s.id === sid ? { ...s, included_terms: next } : s)));
+    const { error } = await supabase.from("students").update({ included_terms: next }).eq("id", sid);
+    if (error) toast.error(error.message);
+  };
 
   const addStudent = async () => {
     if (!newStudent.trim() || !klass) return;
@@ -55,7 +77,7 @@ export default function ClassView() {
     const { data, error } = await supabase
       .from("students")
       .insert({ class_id: klass.id, teacher_id: u.user!.id, name: newStudent.trim(), position: students.length })
-      .select("id, name, position, overrides")
+      .select("id, name, position, overrides, included_terms")
       .single();
     if (error) { toast.error(error.message); return; }
     setStudents((p) => [...p, data as Student]);
@@ -156,9 +178,20 @@ export default function ClassView() {
       <div className="flex items-end justify-between mb-8 gap-4 flex-wrap">
         <div>
           <h1 className="font-display text-4xl">{klass.name}</h1>
-          <p className="text-muted-foreground mt-1">
-            {[klass.year_grade, klass.subject, klass.term].filter(Boolean).join(" · ") || "—"}
-          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <p className="text-muted-foreground">
+              {[klass.year_grade, klass.subject].filter(Boolean).join(" · ") || "—"}
+            </p>
+            {(klass.year_grade || klass.subject) && <span className="text-muted-foreground">·</span>}
+            <Select value={klass.active_term ?? undefined} onValueChange={setActiveTerm}>
+              <SelectTrigger className="h-8 w-[160px]">
+                <SelectValue placeholder="Select term" />
+              </SelectTrigger>
+              <SelectContent>
+                {TERMS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" asChild>
@@ -188,7 +221,12 @@ export default function ClassView() {
             {students.map((s) => {
               const gender = s.overrides?.gender;
               const isEditing = editingId === s.id;
-              const cov = assessCoverage(noteText[s.id] || "");
+              const included = new Set(s.included_terms || TERMS);
+              const includedText = (notesByStudent[s.id] || [])
+                .filter((n) => included.has(n.term))
+                .map((n) => n.body)
+                .join("\n");
+              const cov = assessCoverage(includedText);
               const cardClass =
                 cov.status === "none"
                   ? "border-red-500/60 bg-red-500/5"
@@ -287,6 +325,23 @@ export default function ClassView() {
                     <p className="text-xs text-muted-foreground">
                       {cov.status === "none" ? "no notes" : cov.status === "partial" ? "missing elements" : "looks complete"}
                     </p>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-border/50">
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5 px-1">Include notes from:</p>
+                    <div className="grid grid-cols-2 gap-1 px-1">
+                      {TERMS.map((t) => {
+                        const checked = included.has(t);
+                        return (
+                          <label key={t} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) => toggleIncludedTerm(s.id, t, !!v)}
+                            />
+                            <span>{t}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
                 </Card>
               );
