@@ -132,6 +132,7 @@ export default function StudentCard() {
         type: "voice",
         transcript: data?.text ?? "",
         media_path: path,
+        term: activeTerm,
       });
       if (insErr) throw insErr;
       toast.success("Voice note saved");
