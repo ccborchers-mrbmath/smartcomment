@@ -344,24 +344,6 @@ export default function ClassView() {
                     <p className="text-xs text-muted-foreground">
                       {cov.status === "none" ? "no notes" : cov.status === "partial" ? "missing elements" : "looks complete"}
                     </p>
-                  </div>
-                  <div className="mt-3 pt-2 border-t border-border/50">
-                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5 px-1">Include notes from:</p>
-                    <div className="grid grid-cols-2 gap-1 px-1">
-                      {TERMS.map((t) => {
-                        const checked = included.has(t);
-                        return (
-                          <label key={t} className="flex items-center gap-1.5 text-xs cursor-pointer">
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={(v) => toggleIncludedTerm(s.id, t, !!v)}
-                            />
-                            <span>{t}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
                 </Card>
               );
             })}
