@@ -126,23 +126,10 @@ export default function ReviewExport() {
     }
   };
 
-  const revertTo = async (sid: string, v: Version) => {
-    const row = rows.find((r) => r.student_id === sid);
-    if (!row || v.version === row.version) return;
-    const nextVersion = row.version + 1;
-    const { data: userRes } = await supabase.auth.getUser();
-    const uid = userRes?.user?.id;
-    if (!uid) { toast.error("Not signed in"); return; }
-    const { error } = await supabase.from("generated_comments").insert({
-      student_id: sid,
-      teacher_id: uid,
-      text: v.text,
-      version: nextVersion,
-      model: "revert",
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success(`Reverted to v${v.version} (saved as v${nextVersion})`);
-    load();
+  const selectVersion = (sid: string, v: Version) => {
+    setSelectedVersion((p) => ({ ...p, [sid]: v.id }));
+    setEdits((p) => ({ ...p, [sid]: v.text }));
+    setEditableIds((p) => ({ ...p, [sid]: false }));
   };
 
   const copyOne = (sid: string) => {
