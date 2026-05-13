@@ -185,6 +185,10 @@ export default function ReviewExport() {
       ) : (
         <div className="space-y-4">
           {rows.map((r) => {
+            const activeVersion =
+              r.versions.find((v) => v.id === selectedVersion[r.student_id]) ?? r.versions[0];
+            const activeCommentId = activeVersion?.id ?? r.comment_id;
+            const activeVersionNum = activeVersion?.version ?? r.version;
             const text = edits[r.student_id] ?? "";
             const wc = wordCount(text);
             const cc = text.length;
@@ -200,17 +204,17 @@ export default function ReviewExport() {
                       r.versions.length > 1 ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5">
-                            v{r.version}<ChevronDown className="w-3 h-3" />
+                            v{activeVersionNum}<ChevronDown className="w-3 h-3" />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
                             {r.versions.map((v) => (
                               <DropdownMenuItem
                                 key={v.id}
-                                onClick={() => revertTo(r.student_id, v)}
+                                onClick={() => selectVersion(r.student_id, v)}
                                 className="flex flex-col items-start gap-0.5"
                               >
                                 <span className="text-xs font-medium">
-                                  v{v.version} {v.version === r.version ? "(current)" : ""}
+                                  v{v.version} {v.id === activeCommentId ? "(viewing)" : v.version === r.version ? "(latest)" : ""}
                                 </span>
                                 <span className="text-[10px] text-muted-foreground">
                                   {new Date(v.created_at).toLocaleString()}
@@ -225,10 +229,10 @@ export default function ReviewExport() {
                     )}
                   </div>
                   <div className="flex gap-2 flex-wrap">
-                    <Button variant="ghost" size="sm" onClick={() => focusEdit(r.student_id)} disabled={!r.comment_id}>
+                    <Button variant="ghost" size="sm" onClick={() => focusEdit(r.student_id)} disabled={!activeCommentId}>
                       <Pencil className="w-3.5 h-3.5 mr-1.5" />Manual edit
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => spellcheck(r.student_id, r.comment_id, r.student_name)} disabled={!r.comment_id || spellIds[r.student_id]}>
+                    <Button variant="ghost" size="sm" onClick={() => spellcheck(r.student_id, activeCommentId, r.student_name)} disabled={!activeCommentId || spellIds[r.student_id]}>
                       {spellIds[r.student_id] ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <SpellCheck className="w-3.5 h-3.5 mr-1.5" />}
                       Spelling & grammar
                     </Button>
@@ -239,7 +243,7 @@ export default function ReviewExport() {
                     <Button variant="ghost" size="sm" onClick={() => copyOne(r.student_id)}><Copy className="w-3.5 h-3.5 mr-1.5" />Copy</Button>
                   </div>
                 </div>
-                {r.comment_id ? (
+                {activeCommentId ? (
                   <>
                     <Textarea
                       ref={(el) => { textareaRefs.current[r.student_id] = el; }}
@@ -250,7 +254,7 @@ export default function ReviewExport() {
                       onChange={(e) => setEdits((p) => ({ ...p, [r.student_id]: e.target.value }))}
                       onBlur={() => {
                         if (editableIds[r.student_id]) {
-                          saveEdit(r.student_id, r.comment_id);
+                          saveEdit(r.student_id, activeCommentId);
                           setEditableIds((p) => ({ ...p, [r.student_id]: false }));
                         }
                       }}
