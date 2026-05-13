@@ -38,19 +38,25 @@ export default function ReviewExport() {
     const ids = (students ?? []).map((s) => s.id);
     const { data: comments } = await supabase
       .from("generated_comments")
-      .select("id, student_id, text, version")
+      .select("id, student_id, text, version, created_at")
       .in("student_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"])
       .order("version", { ascending: false });
-    const latestByStudent = new Map<string, any>();
-    (comments ?? []).forEach((c) => { if (!latestByStudent.has(c.student_id)) latestByStudent.set(c.student_id, c); });
+    const versionsByStudent = new Map<string, Version[]>();
+    (comments ?? []).forEach((c) => {
+      const arr = versionsByStudent.get(c.student_id) ?? [];
+      arr.push(c as Version);
+      versionsByStudent.set(c.student_id, arr);
+    });
     const built: Row[] = (students ?? []).map((s) => {
-      const c = latestByStudent.get(s.id);
+      const vs = versionsByStudent.get(s.id) ?? [];
+      const c = vs[0];
       return {
         student_id: s.id,
         student_name: s.name,
         comment_id: c?.id ?? null,
         text: c?.text ?? "",
         version: c?.version ?? 0,
+        versions: vs,
       };
     });
     setRows(built);
