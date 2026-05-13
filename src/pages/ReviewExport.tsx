@@ -5,7 +5,7 @@ import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Copy, Download, Loader2, Pencil, SpellCheck, Sparkles, ChevronDown } from "lucide-react";
+import { ArrowLeft, Copy, Download, Loader2, Pencil, SpellCheck, Sparkles, ChevronDown, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
@@ -132,6 +132,23 @@ export default function ReviewExport() {
     setEditableIds((p) => ({ ...p, [sid]: false }));
   };
 
+  const deleteVersion = async (sid: string, commentId: string | null, versionNum: number) => {
+    if (!commentId) return;
+    if (!confirm(`Delete version ${versionNum}? This cannot be undone.`)) return;
+    const { error } = await supabase.from("generated_comments").delete().eq("id", commentId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setSelectedVersion((p) => {
+      const n = { ...p };
+      delete n[sid];
+      return n;
+    });
+    toast.success("Version deleted");
+    load();
+  };
+
   const copyOne = (sid: string) => {
     navigator.clipboard.writeText(edits[sid] ?? "");
     toast.success("Copied");
@@ -241,6 +258,9 @@ export default function ReviewExport() {
                       Regenerate
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => copyOne(r.student_id)}><Copy className="w-3.5 h-3.5 mr-1.5" />Copy</Button>
+                    <Button variant="ghost" size="sm" onClick={() => deleteVersion(r.student_id, activeCommentId, activeVersionNum)} disabled={!activeCommentId} className="text-destructive hover:text-destructive">
+                      <Trash2 className="w-3.5 h-3.5 mr-1.5" />Delete version
+                    </Button>
                   </div>
                 </div>
                 {activeCommentId ? (
