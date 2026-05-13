@@ -24,6 +24,7 @@ export default function ReviewExport() {
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [regenIds, setRegenIds] = useState<Record<string, boolean>>({});
   const [spellIds, setSpellIds] = useState<Record<string, boolean>>({});
+  const [editableIds, setEditableIds] = useState<Record<string, boolean>>({});
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
   const load = async () => {
@@ -81,11 +82,14 @@ export default function ReviewExport() {
   };
 
   const focusEdit = (sid: string) => {
-    const el = textareaRefs.current[sid];
-    if (el) {
-      el.focus();
-      el.setSelectionRange(el.value.length, el.value.length);
-    }
+    setEditableIds((p) => ({ ...p, [sid]: true }));
+    setTimeout(() => {
+      const el = textareaRefs.current[sid];
+      if (el) {
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      }
+    }, 0);
   };
 
   const spellcheck = async (sid: string, commentId: string | null, studentName: string) => {
@@ -199,8 +203,15 @@ export default function ReviewExport() {
                       ref={(el) => { textareaRefs.current[r.student_id] = el; }}
                       rows={5}
                       value={text}
+                      readOnly={!editableIds[r.student_id]}
+                      className={!editableIds[r.student_id] ? "bg-muted/40 cursor-default focus-visible:ring-0 focus-visible:ring-offset-0" : ""}
                       onChange={(e) => setEdits((p) => ({ ...p, [r.student_id]: e.target.value }))}
-                      onBlur={() => saveEdit(r.student_id, r.comment_id)}
+                      onBlur={() => {
+                        if (editableIds[r.student_id]) {
+                          saveEdit(r.student_id, r.comment_id);
+                          setEditableIds((p) => ({ ...p, [r.student_id]: false }));
+                        }
+                      }}
                     />
                     <div className="flex items-center justify-between mt-2 text-xs">
                       <span className={overWord || underWord ? "text-destructive" : "text-muted-foreground"}>
