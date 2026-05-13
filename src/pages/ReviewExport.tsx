@@ -132,6 +132,23 @@ export default function ReviewExport() {
     setEditableIds((p) => ({ ...p, [sid]: false }));
   };
 
+  const deleteVersion = async (sid: string, commentId: string | null, versionNum: number) => {
+    if (!commentId) return;
+    if (!confirm(`Delete version ${versionNum}? This cannot be undone.`)) return;
+    const { error } = await supabase.from("generated_comments").delete().eq("id", commentId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setSelectedVersion((p) => {
+      const n = { ...p };
+      delete n[sid];
+      return n;
+    });
+    toast.success("Version deleted");
+    load();
+  };
+
   const copyOne = (sid: string) => {
     navigator.clipboard.writeText(edits[sid] ?? "");
     toast.success("Copied");
