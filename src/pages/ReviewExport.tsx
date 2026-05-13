@@ -203,8 +203,15 @@ export default function ReviewExport() {
                       ref={(el) => { textareaRefs.current[r.student_id] = el; }}
                       rows={5}
                       value={text}
+                      readOnly={!editableIds[r.student_id]}
+                      className={!editableIds[r.student_id] ? "bg-muted/40 cursor-default focus-visible:ring-0 focus-visible:ring-offset-0" : ""}
                       onChange={(e) => setEdits((p) => ({ ...p, [r.student_id]: e.target.value }))}
-                      onBlur={() => saveEdit(r.student_id, r.comment_id)}
+                      onBlur={() => {
+                        if (editableIds[r.student_id]) {
+                          saveEdit(r.student_id, r.comment_id);
+                          setEditableIds((p) => ({ ...p, [r.student_id]: false }));
+                        }
+                      }}
                     />
                     <div className="flex items-center justify-between mt-2 text-xs">
                       <span className={overWord || underWord ? "text-destructive" : "text-muted-foreground"}>
