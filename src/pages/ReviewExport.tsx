@@ -28,6 +28,7 @@ export default function ReviewExport() {
   const [regenIds, setRegenIds] = useState<Record<string, boolean>>({});
   const [spellIds, setSpellIds] = useState<Record<string, boolean>>({});
   const [editableIds, setEditableIds] = useState<Record<string, boolean>>({});
+  const [selectedVersion, setSelectedVersion] = useState<Record<string, string>>({});
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
   const load = async () => {
