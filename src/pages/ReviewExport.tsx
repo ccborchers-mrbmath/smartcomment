@@ -178,7 +178,14 @@ export default function ReviewExport() {
                     <h3 className="font-display text-xl">{r.student_name}</h3>
                     {r.version > 0 && <p className="text-xs text-muted-foreground">v{r.version}</p>}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
+                    <Button variant="ghost" size="sm" onClick={() => focusEdit(r.student_id)} disabled={!r.comment_id}>
+                      <Pencil className="w-3.5 h-3.5 mr-1.5" />Manual edit
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => spellcheck(r.student_id, r.comment_id, r.student_name)} disabled={!r.comment_id || spellIds[r.student_id]}>
+                      {spellIds[r.student_id] ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <SpellCheck className="w-3.5 h-3.5 mr-1.5" />}
+                      Spelling & grammar
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => regen(r.student_id)} disabled={regenIds[r.student_id]}>
                       {regenIds[r.student_id] ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5" />}
                       Regenerate
@@ -189,6 +196,7 @@ export default function ReviewExport() {
                 {r.comment_id ? (
                   <>
                     <Textarea
+                      ref={(el) => { textareaRefs.current[r.student_id] = el; }}
                       rows={5}
                       value={text}
                       onChange={(e) => setEdits((p) => ({ ...p, [r.student_id]: e.target.value }))}
