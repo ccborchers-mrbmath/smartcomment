@@ -5,15 +5,18 @@ import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Copy, Download, Loader2, Pencil, SpellCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Copy, Download, Loader2, Pencil, SpellCheck, Sparkles, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
+type Version = { id: string; text: string; version: number; created_at: string };
 type Row = {
   student_id: string;
   student_name: string;
   comment_id: string | null;
   text: string;
   version: number;
+  versions: Version[];
 };
 
 export default function ReviewExport() {
