@@ -82,11 +82,14 @@ export default function ReviewExport() {
   };
 
   const focusEdit = (sid: string) => {
-    const el = textareaRefs.current[sid];
-    if (el) {
-      el.focus();
-      el.setSelectionRange(el.value.length, el.value.length);
-    }
+    setEditableIds((p) => ({ ...p, [sid]: true }));
+    setTimeout(() => {
+      const el = textareaRefs.current[sid];
+      if (el) {
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      }
+    }, 0);
   };
 
   const spellcheck = async (sid: string, commentId: string | null, studentName: string) => {
