@@ -80,6 +80,38 @@ export default function ReviewExport() {
     }
   };
 
+  const focusEdit = (sid: string) => {
+    const el = textareaRefs.current[sid];
+    if (el) {
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    }
+  };
+
+  const spellcheck = async (sid: string, commentId: string | null, studentName: string) => {
+    if (!commentId) return;
+    const current = edits[sid] ?? "";
+    if (!current.trim()) return;
+    setSpellIds((p) => ({ ...p, [sid]: true }));
+    try {
+      const { data, error } = await supabase.functions.invoke("spellcheck-comment", {
+        body: { text: current, studentName },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const corrected = data?.text ?? "";
+      if (!corrected) throw new Error("Empty response");
+      setEdits((p) => ({ ...p, [sid]: corrected }));
+      const { error: upErr } = await supabase.from("generated_comments").update({ text: corrected }).eq("id", commentId);
+      if (upErr) throw upErr;
+      toast.success("Spelling & grammar checked");
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed");
+    } finally {
+      setSpellIds((p) => ({ ...p, [sid]: false }));
+    }
+  };
+
   const copyOne = (sid: string) => {
     navigator.clipboard.writeText(edits[sid] ?? "");
     toast.success("Copied");
