@@ -258,6 +258,9 @@ export default function ReviewExport() {
                       Regenerate
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => copyOne(r.student_id)}><Copy className="w-3.5 h-3.5 mr-1.5" />Copy</Button>
+                    <Button variant="ghost" size="sm" onClick={() => deleteVersion(r.student_id, activeCommentId, activeVersionNum)} disabled={!activeCommentId} className="text-destructive hover:text-destructive">
+                      <Trash2 className="w-3.5 h-3.5 mr-1.5" />Delete version
+                    </Button>
                   </div>
                 </div>
                 {activeCommentId ? (
