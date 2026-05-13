@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Copy, Download, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, Copy, Download, Loader2, Pencil, SpellCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 type Row = {
@@ -23,6 +23,8 @@ export default function ReviewExport() {
   const [rows, setRows] = useState<Row[]>([]);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [regenIds, setRegenIds] = useState<Record<string, boolean>>({});
+  const [spellIds, setSpellIds] = useState<Record<string, boolean>>({});
+  const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
   const load = async () => {
     if (!id) return;
@@ -75,6 +77,38 @@ export default function ReviewExport() {
       toast.error(e.message ?? "Failed");
     } finally {
       setRegenIds((p) => ({ ...p, [sid]: false }));
+    }
+  };
+
+  const focusEdit = (sid: string) => {
+    const el = textareaRefs.current[sid];
+    if (el) {
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    }
+  };
+
+  const spellcheck = async (sid: string, commentId: string | null, studentName: string) => {
+    if (!commentId) return;
+    const current = edits[sid] ?? "";
+    if (!current.trim()) return;
+    setSpellIds((p) => ({ ...p, [sid]: true }));
+    try {
+      const { data, error } = await supabase.functions.invoke("spellcheck-comment", {
+        body: { text: current, studentName },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const corrected = data?.text ?? "";
+      if (!corrected) throw new Error("Empty response");
+      setEdits((p) => ({ ...p, [sid]: corrected }));
+      const { error: upErr } = await supabase.from("generated_comments").update({ text: corrected }).eq("id", commentId);
+      if (upErr) throw upErr;
+      toast.success("Spelling & grammar checked");
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed");
+    } finally {
+      setSpellIds((p) => ({ ...p, [sid]: false }));
     }
   };
 
@@ -144,7 +178,14 @@ export default function ReviewExport() {
                     <h3 className="font-display text-xl">{r.student_name}</h3>
                     {r.version > 0 && <p className="text-xs text-muted-foreground">v{r.version}</p>}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
+                    <Button variant="ghost" size="sm" onClick={() => focusEdit(r.student_id)} disabled={!r.comment_id}>
+                      <Pencil className="w-3.5 h-3.5 mr-1.5" />Manual edit
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => spellcheck(r.student_id, r.comment_id, r.student_name)} disabled={!r.comment_id || spellIds[r.student_id]}>
+                      {spellIds[r.student_id] ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <SpellCheck className="w-3.5 h-3.5 mr-1.5" />}
+                      Spelling & grammar
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => regen(r.student_id)} disabled={regenIds[r.student_id]}>
                       {regenIds[r.student_id] ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5" />}
                       Regenerate
@@ -155,6 +196,7 @@ export default function ReviewExport() {
                 {r.comment_id ? (
                   <>
                     <Textarea
+                      ref={(el) => { textareaRefs.current[r.student_id] = el; }}
                       rows={5}
                       value={text}
                       onChange={(e) => setEdits((p) => ({ ...p, [r.student_id]: e.target.value }))}
