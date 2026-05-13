@@ -5,15 +5,18 @@ import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Copy, Download, Loader2, Pencil, SpellCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, Copy, Download, Loader2, Pencil, SpellCheck, Sparkles, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
+type Version = { id: string; text: string; version: number; created_at: string };
 type Row = {
   student_id: string;
   student_name: string;
   comment_id: string | null;
   text: string;
   version: number;
+  versions: Version[];
 };
 
 export default function ReviewExport() {
@@ -35,19 +38,25 @@ export default function ReviewExport() {
     const ids = (students ?? []).map((s) => s.id);
     const { data: comments } = await supabase
       .from("generated_comments")
-      .select("id, student_id, text, version")
+      .select("id, student_id, text, version, created_at")
       .in("student_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"])
       .order("version", { ascending: false });
-    const latestByStudent = new Map<string, any>();
-    (comments ?? []).forEach((c) => { if (!latestByStudent.has(c.student_id)) latestByStudent.set(c.student_id, c); });
+    const versionsByStudent = new Map<string, Version[]>();
+    (comments ?? []).forEach((c) => {
+      const arr = versionsByStudent.get(c.student_id) ?? [];
+      arr.push(c as Version);
+      versionsByStudent.set(c.student_id, arr);
+    });
     const built: Row[] = (students ?? []).map((s) => {
-      const c = latestByStudent.get(s.id);
+      const vs = versionsByStudent.get(s.id) ?? [];
+      const c = vs[0];
       return {
         student_id: s.id,
         student_name: s.name,
         comment_id: c?.id ?? null,
         text: c?.text ?? "",
         version: c?.version ?? 0,
+        versions: vs,
       };
     });
     setRows(built);
@@ -116,6 +125,25 @@ export default function ReviewExport() {
     }
   };
 
+  const revertTo = async (sid: string, v: Version) => {
+    const row = rows.find((r) => r.student_id === sid);
+    if (!row || v.version === row.version) return;
+    const nextVersion = row.version + 1;
+    const { data: userRes } = await supabase.auth.getUser();
+    const uid = userRes?.user?.id;
+    if (!uid) { toast.error("Not signed in"); return; }
+    const { error } = await supabase.from("generated_comments").insert({
+      student_id: sid,
+      teacher_id: uid,
+      text: v.text,
+      version: nextVersion,
+      model: "revert",
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Reverted to v${v.version} (saved as v${nextVersion})`);
+    load();
+  };
+
   const copyOne = (sid: string) => {
     navigator.clipboard.writeText(edits[sid] ?? "");
     toast.success("Copied");
@@ -180,7 +208,33 @@ export default function ReviewExport() {
                 <div className="flex items-start justify-between mb-3 gap-4 flex-wrap">
                   <div>
                     <h3 className="font-display text-xl">{r.student_name}</h3>
-                    {r.version > 0 && <p className="text-xs text-muted-foreground">v{r.version}</p>}
+                    {r.version > 0 && (
+                      r.versions.length > 1 ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5">
+                            v{r.version}<ChevronDown className="w-3 h-3" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+                            {r.versions.map((v) => (
+                              <DropdownMenuItem
+                                key={v.id}
+                                onClick={() => revertTo(r.student_id, v)}
+                                className="flex flex-col items-start gap-0.5"
+                              >
+                                <span className="text-xs font-medium">
+                                  v{v.version} {v.version === r.version ? "(current)" : ""}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {new Date(v.created_at).toLocaleString()}
+                                </span>
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">v{r.version}</p>
+                      )
+                    )}
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <Button variant="ghost" size="sm" onClick={() => focusEdit(r.student_id)} disabled={!r.comment_id}>
