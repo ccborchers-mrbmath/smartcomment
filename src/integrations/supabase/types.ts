@@ -83,6 +83,38 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback_replies: {
+        Row: {
+          author_id: string
+          created_at: string
+          feedback_id: string
+          id: string
+          message: string
+        }
+        Insert: {
+          author_id?: string
+          created_at?: string
+          feedback_id: string
+          id?: string
+          message: string
+        }
+        Update: {
+          author_id?: string
+          created_at?: string
+          feedback_id?: string
+          id?: string
+          message?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_replies_feedback_id_fkey"
+            columns: ["feedback_id"]
+            isOneToOne: false
+            referencedRelation: "feedback"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generated_comments: {
         Row: {
           created_at: string
