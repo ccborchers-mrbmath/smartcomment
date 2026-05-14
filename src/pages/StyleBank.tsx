@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Toggle } from "@/components/ui/toggle";
 
 const GRADES = ["All Grades", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"] as const;
 type Grade = typeof GRADES[number];
