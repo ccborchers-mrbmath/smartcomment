@@ -20,6 +20,11 @@ export default function StyleBank() {
   const [samples, setSamples] = useState<Sample[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [gradeFilter, setGradeFilter] = useState<Grade[]>([...GRADES]);
+
+  const toggleGradeFilter = (g: Grade) => {
+    setGradeFilter((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]));
+  };
 
   const load = async () => {
     const { data } = await supabase.from("style_samples").select("*").order("created_at", { ascending: false });
