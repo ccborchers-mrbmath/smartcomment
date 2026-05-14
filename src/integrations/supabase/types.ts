@@ -331,6 +331,7 @@ export type Database = {
         Row: {
           active: boolean
           created_at: string
+          grade: string
           id: string
           source: string | null
           teacher_id: string
@@ -339,6 +340,7 @@ export type Database = {
         Insert: {
           active?: boolean
           created_at?: string
+          grade?: string
           id?: string
           source?: string | null
           teacher_id: string
@@ -347,6 +349,7 @@ export type Database = {
         Update: {
           active?: boolean
           created_at?: string
+          grade?: string
           id?: string
           source?: string | null
           teacher_id?: string
