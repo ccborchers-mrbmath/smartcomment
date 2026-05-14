@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Toggle } from "@/components/ui/toggle";
 
 const GRADES = ["All Grades", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"] as const;
 type Grade = typeof GRADES[number];
@@ -19,6 +20,11 @@ export default function StyleBank() {
   const [samples, setSamples] = useState<Sample[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [gradeFilter, setGradeFilter] = useState<Grade[]>([...GRADES]);
+
+  const toggleGradeFilter = (g: Grade) => {
+    setGradeFilter((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]));
+  };
 
   const load = async () => {
     const { data } = await supabase.from("style_samples").select("*").order("created_at", { ascending: false });
@@ -66,7 +72,8 @@ export default function StyleBank() {
 
   const activeCount = samples.filter((s) => s.active).length;
 
-  const sortedSamples = [...samples].sort((a, b) => {
+  const filteredSamples = samples.filter((s) => gradeFilter.includes(s.grade));
+  const sortedSamples = [...filteredSamples].sort((a, b) => {
     const ai = GRADES.indexOf(a.grade);
     const bi = GRADES.indexOf(b.grade);
     if (ai !== bi) return ai - bi;
@@ -97,9 +104,36 @@ export default function StyleBank() {
 
         <Card className="p-6">
           <h2 className="font-display text-xl mb-1">Saved samples ({samples.length})</h2>
-          <p className="text-xs text-muted-foreground mb-4">
+          <p className="text-xs text-muted-foreground mb-3">
             {activeCount} active — only checked samples are used when generating comments.
           </p>
+          <div className="flex flex-wrap items-center gap-1.5 mb-4">
+            <span className="text-xs text-muted-foreground mr-1">Filter:</span>
+            {GRADES.map((g) => {
+              const on = gradeFilter.includes(g);
+              return (
+                <Toggle
+                  key={g}
+                  size="sm"
+                  pressed={on}
+                  onPressedChange={() => toggleGradeFilter(g)}
+                  className="h-7 px-2 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                >
+                  {g}
+                </Toggle>
+              );
+            })}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs ml-auto"
+              onClick={() =>
+                setGradeFilter(gradeFilter.length === GRADES.length ? [] : [...GRADES])
+              }
+            >
+              {gradeFilter.length === GRADES.length ? "Clear" : "All"}
+            </Button>
+          </div>
           {samples.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nothing yet.</p>
           ) : (
