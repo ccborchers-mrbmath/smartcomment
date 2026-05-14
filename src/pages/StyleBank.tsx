@@ -72,7 +72,8 @@ export default function StyleBank() {
 
   const activeCount = samples.filter((s) => s.active).length;
 
-  const sortedSamples = [...samples].sort((a, b) => {
+  const filteredSamples = samples.filter((s) => gradeFilter.includes(s.grade));
+  const sortedSamples = [...filteredSamples].sort((a, b) => {
     const ai = GRADES.indexOf(a.grade);
     const bi = GRADES.indexOf(b.grade);
     if (ai !== bi) return ai - bi;
