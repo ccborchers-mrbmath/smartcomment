@@ -8,8 +8,12 @@ import { Plus, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-type Sample = { id: string; text: string; source: string | null; created_at: string; active: boolean };
+const GRADES = ["All Grades", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"] as const;
+type Grade = typeof GRADES[number];
+
+type Sample = { id: string; text: string; source: string | null; created_at: string; active: boolean; grade: Grade };
 
 export default function StyleBank() {
   const [samples, setSamples] = useState<Sample[]>([]);
@@ -51,7 +55,23 @@ export default function StyleBank() {
     }
   };
 
+  const setGrade = async (id: string, grade: Grade) => {
+    setSamples((prev) => prev.map((s) => (s.id === id ? { ...s, grade } : s)));
+    const { error } = await supabase.from("style_samples").update({ grade }).eq("id", id);
+    if (error) {
+      toast.error(error.message);
+      load();
+    }
+  };
+
   const activeCount = samples.filter((s) => s.active).length;
+
+  const sortedSamples = [...samples].sort((a, b) => {
+    const ai = GRADES.indexOf(a.grade);
+    const bi = GRADES.indexOf(b.grade);
+    if (ai !== bi) return ai - bi;
+    return (b.created_at ?? "").localeCompare(a.created_at ?? "");
+  });
 
   return (
     <AppShell>
@@ -84,7 +104,7 @@ export default function StyleBank() {
             <p className="text-sm text-muted-foreground">Nothing yet.</p>
           ) : (
             <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
-              {samples.map((s) => (
+              {sortedSamples.map((s) => (
                 <div key={s.id} className="border border-border rounded-lg p-3 group">
                   <div className="flex items-start gap-3">
                     <Checkbox
@@ -93,7 +113,19 @@ export default function StyleBank() {
                       className="mt-0.5"
                       aria-label="Use this sample when generating"
                     />
-                    <p className={`text-sm whitespace-pre-wrap flex-1 ${s.active ? "" : "opacity-50"}`}>{s.text}</p>
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <p className={`text-sm whitespace-pre-wrap ${s.active ? "" : "opacity-50"}`}>{s.text}</p>
+                      <Select value={s.grade ?? "All Grades"} onValueChange={(v) => setGrade(s.id, v as Grade)}>
+                        <SelectTrigger className="h-7 text-xs w-[140px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {GRADES.map((g) => (
+                            <SelectItem key={g} value={g} className="text-xs">{g}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => del(s.id)}>
                       <Trash2 className="w-3 h-3 text-destructive" />
                     </Button>
