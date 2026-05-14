@@ -22,7 +22,7 @@ export default function StyleBank() {
 
   const load = async () => {
     const { data } = await supabase.from("style_samples").select("*").order("created_at", { ascending: false });
-    setSamples(data ?? []);
+    setSamples((data ?? []) as Sample[]);
   };
   useEffect(() => { load(); }, []);
 
