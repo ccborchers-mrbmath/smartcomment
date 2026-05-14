@@ -69,6 +69,7 @@ serve(async (req) => {
     const { data: styleSamples } = await supabase
       .from("style_samples")
       .select("text")
+      .eq("active", true)
       .limit(20);
 
     const classReqs = (cls?.requirements ?? {}) as any;

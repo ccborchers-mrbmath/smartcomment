@@ -7,7 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-type Sample = { id: string; text: string; source: string | null; created_at: string };
+import { Checkbox } from "@/components/ui/checkbox";
+
+type Sample = { id: string; text: string; source: string | null; created_at: string; active: boolean };
 
 export default function StyleBank() {
   const [samples, setSamples] = useState<Sample[]>([]);
@@ -40,6 +42,17 @@ export default function StyleBank() {
     load();
   };
 
+  const toggleActive = async (id: string, active: boolean) => {
+    setSamples((prev) => prev.map((s) => (s.id === id ? { ...s, active } : s)));
+    const { error } = await supabase.from("style_samples").update({ active }).eq("id", id);
+    if (error) {
+      toast.error(error.message);
+      load();
+    }
+  };
+
+  const activeCount = samples.filter((s) => s.active).length;
+
   return (
     <AppShell>
       <div className="mb-8">
@@ -63,15 +76,24 @@ export default function StyleBank() {
         </Card>
 
         <Card className="p-6">
-          <h2 className="font-display text-xl mb-4">Saved samples ({samples.length})</h2>
+          <h2 className="font-display text-xl mb-1">Saved samples ({samples.length})</h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            {activeCount} active — only checked samples are used when generating comments.
+          </p>
           {samples.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nothing yet.</p>
           ) : (
             <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
               {samples.map((s) => (
                 <div key={s.id} className="border border-border rounded-lg p-3 group">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm whitespace-pre-wrap flex-1">{s.text}</p>
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      checked={s.active}
+                      onCheckedChange={(v) => toggleActive(s.id, v === true)}
+                      className="mt-0.5"
+                      aria-label="Use this sample when generating"
+                    />
+                    <p className={`text-sm whitespace-pre-wrap flex-1 ${s.active ? "" : "opacity-50"}`}>{s.text}</p>
                     <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => del(s.id)}>
                       <Trash2 className="w-3 h-3 text-destructive" />
                     </Button>
