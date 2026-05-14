@@ -329,6 +329,7 @@ export type Database = {
       }
       style_samples: {
         Row: {
+          active: boolean
           created_at: string
           id: string
           source: string | null
@@ -336,6 +337,7 @@ export type Database = {
           text: string
         }
         Insert: {
+          active?: boolean
           created_at?: string
           id?: string
           source?: string | null
@@ -343,6 +345,7 @@ export type Database = {
           text: string
         }
         Update: {
+          active?: boolean
           created_at?: string
           id?: string
           source?: string | null

@@ -1,0 +1,1 @@
+ALTER TABLE public.style_samples ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;
