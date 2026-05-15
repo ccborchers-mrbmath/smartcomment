@@ -332,6 +332,9 @@ export default function ReviewExport() {
                       {spellIds[r.student_id] ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <SpellCheck className="w-3.5 h-3.5 mr-1.5" />}
                       Spelling & grammar
                     </Button>
+                    <Button variant="ghost" size="sm" onClick={() => openRewrite(r.student_id, activeCommentId)} disabled={!activeCommentId || !editableIds[r.student_id]} title={!editableIds[r.student_id] ? "Click Manual edit first, then select text" : "Select text in the comment, then click"}>
+                      <Wand2 className="w-3.5 h-3.5 mr-1.5" />Rewrite selection
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => regen(r.student_id)} disabled={regenIds[r.student_id]}>
                       {regenIds[r.student_id] ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5" />}
                       Regenerate
