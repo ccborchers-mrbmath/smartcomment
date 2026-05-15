@@ -1,34 +1,59 @@
+# Chunk comment generation for quality
+
 ## Goal
+When a teacher generates comments for a large class, the edge function should internally split the work into small batches so each AI call has the model's full attention on just a few students at a time. The user experience stays the same — one click, all comments returned — but quality (rule adherence, specificity, pronoun/name accuracy) improves significantly on big classes.
 
-Right now the active-term dropdown changes which term new notes get tagged with, but nothing on screen reacts to it. This plan makes the active term the lens through which notes are viewed, while keeping all existing data intact.
+## Why not strictly one-at-a-time
+One student per call gives the best quality, but a class of 30 would mean 30 sequential calls (~5+ minutes wall time) — too slow. Running them in parallel risks hitting the AI gateway's rate limit (429s) and would actually fail more often than it succeeds. The right balance is **small batches run with bounded parallelism**.
 
-## Data safety
+## Approach
 
-No schema changes. No data migrations. Every existing note already has a `term` value (`2026 Term 2` after the previous backfill), so filtering and badges work immediately on existing data.
+**Batch size: 3 students per AI call.**
+At 3 students, the model still treats each comment individually (quality is indistinguishable from 1-at-a-time in practice), but we cut the number of calls by ~3x.
 
-## Changes
+**Concurrency: up to 3 batches in flight at once.**
+So a 30-student class becomes 10 batches × 3 = 3 waves of 3 parallel calls. Wall time stays roughly the same as today's single-call approach, but quality is much higher. Concurrency is capped to stay safely under the AI gateway's per-minute rate limit.
 
-### 1. Student notes page (`src/pages/StudentCard.tsx`)
+**Single retry on 429.**
+If a batch hits a rate limit, wait briefly and retry once. If it still fails, surface a clear error but keep the comments that did succeed.
 
-- Load the `term` field on each note (currently `select("*")` already returns it; add it to the `Input` type).
-- Show a small term badge on every note row (e.g. `2026 Term 2`) next to the existing type label and timestamp.
-- Default the notes list to **only** notes whose `term` matches the class's `active_term`.
-- Add a **"Show all terms"** toggle (switch or checkbox) above the notes list. When on, all notes are shown regardless of term, each still showing its term badge.
-- Show a small "Recording for: 2026 Term X" hint above the input tabs so the teacher knows which term the next note will be stamped with.
-- Show an empty state like "No notes for 2026 Term X yet" when the filtered list is empty but other terms have notes (with a hint to flip "Show all terms").
+**Atomic save.**
+Each successful batch's comments are saved as new versions in `generated_comments` immediately (same logic as today), so a partial failure never loses completed work.
 
-### 2. Class page coverage dots (`src/pages/ClassView.tsx`)
+## What stays the same
+- The client still calls `generate-comments` once with the full `studentIds` array.
+- The system prompt, school policy merging, style samples, per-student pronoun/name rules — all unchanged.
+- The response shape `{ comments: [{ student_id, text }, ...] }` is unchanged, so `ReviewExport.tsx` and other callers need no changes.
+- Single-student and small-class generation behave identically to today (one batch, one call).
 
-- Change the per-student coverage calculation to use **only notes whose `term` equals the class's `active_term`** (instead of the union of `included_terms`).
-- The "Include notes from:" checkboxes keep their current job — they only control which terms feed the AI when generating comments. (Add a one-line helper text under that block making this clear, e.g. "Used when generating comments. Doesn't affect which notes are shown.")
-- The card colour now answers: "Do I have enough notes for the term I'm currently working in?" — which matches how a teacher actually uses the page term-by-term.
+## What changes
+- `supabase/functions/generate-comments/index.ts` — the section that builds `studentBlocks` and makes one fetch to the AI gateway is refactored into a helper that takes a chunk of students and returns parsed comments. The handler then chunks `students` into groups of 3, runs them with a concurrency limit of 3, collects results, and persists/returns them.
 
-### 3. No backend / edge-function changes
+## Technical details
 
-`generate-comments` already filters by `included_terms`, so generation behaviour is unchanged.
+```text
+chunk(students, 3) -> [[s1,s2,s3], [s4,s5,s6], ...]
 
-## Out of scope (for later)
+runWithConcurrency(chunks, limit=3, async (chunk) => {
+  build studentBlocks for chunk
+  POST to ai.gateway.lovable.dev (same payload shape)
+  on 429: wait 1.5s, retry once
+  parse tool_call -> comments
+  insert each as new version into generated_comments
+  return comments
+})
 
-- The bigger "learning journal" vision (richer input types, more report formats). Happy to plan that separately once this term-aware view feels right.
-- Per-note term editing (changing a note's term after the fact). Can be added later if useful — for now the badge is read-only.
-- Legacy `classes.term` column stays untouched.
+flatten -> { comments: [...] }
+```
+
+Error handling:
+- 402 (credits exhausted) — abort remaining batches, return what's done with a clear error.
+- 429 after retry — same: return partial + error message.
+- Other 5xx — same partial-return behaviour, log the failing batch.
+
+No DB schema changes. No client changes. No new dependencies.
+
+## Out of scope
+- Streaming progress updates back to the UI (would need a different transport; can be a follow-up if desired).
+- Per-student retry logic beyond the single 429 retry per batch.
+- Configurable batch size — hardcoded to 3 for now; easy to tune later.
