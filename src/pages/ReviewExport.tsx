@@ -173,6 +173,27 @@ export default function ReviewExport() {
     URL.revokeObjectURL(url);
   };
 
+  const exportDocx = async () => {
+    const children: Paragraph[] = [
+      new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(`${klass?.name ?? "Class"} — Comments`)] }),
+    ];
+    rows.forEach((r) => {
+      children.push(
+        new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 240, after: 80 }, children: [new TextRun(r.student_name)] }),
+        new Paragraph({ children: [new TextRun(edits[r.student_id] ?? "")] }),
+      );
+    });
+    const doc = new Document({ sections: [{ children }] });
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${klass?.name ?? "class"}-comments.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("DOCX exported");
+  };
+
   const reqs = klass?.requirements ?? {};
   const wordCount = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 
