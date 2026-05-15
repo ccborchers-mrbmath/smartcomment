@@ -5,9 +5,11 @@ import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Copy, Download, Loader2, Pencil, SpellCheck, Sparkles, ChevronDown, Trash2 } from "lucide-react";
+import { ArrowLeft, Copy, Download, Loader2, Pencil, SpellCheck, Sparkles, ChevronDown, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 
 type Version = { id: string; text: string; version: number; created_at: string };
@@ -31,6 +33,60 @@ export default function ReviewExport() {
   const [editableIds, setEditableIds] = useState<Record<string, boolean>>({});
   const [selectedVersion, setSelectedVersion] = useState<Record<string, string>>({});
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const [rewriteState, setRewriteState] = useState<{
+    sid: string;
+    commentId: string;
+    selStart: number;
+    selEnd: number;
+    selection: string;
+    instruction: string;
+    loading: boolean;
+  } | null>(null);
+
+  const openRewrite = (sid: string, commentId: string | null) => {
+    if (!commentId) return;
+    const el = textareaRefs.current[sid];
+    if (!el) return;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? 0;
+    if (start === end) {
+      toast.error("Select some text in the comment first");
+      return;
+    }
+    const value = el.value;
+    const selection = value.slice(start, end);
+    setRewriteState({ sid, commentId, selStart: start, selEnd: end, selection, instruction: "", loading: false });
+  };
+
+  const runRewrite = async () => {
+    if (!rewriteState) return;
+    const { sid, commentId, selStart, selEnd, selection, instruction } = rewriteState;
+    const fullComment = edits[sid] ?? "";
+    if (fullComment.slice(selStart, selEnd) !== selection) {
+      toast.error("The comment changed since you opened this. Reselect and try again.");
+      setRewriteState(null);
+      return;
+    }
+    setRewriteState({ ...rewriteState, loading: true });
+    try {
+      const { data, error } = await supabase.functions.invoke("rewrite-selection", {
+        body: { studentId: sid, fullComment, selection, instruction: instruction.trim() || undefined },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const replacement = (data?.text ?? "").trim();
+      if (!replacement) throw new Error("Empty response");
+      const next = fullComment.slice(0, selStart) + replacement + fullComment.slice(selEnd);
+      setEdits((p) => ({ ...p, [sid]: next }));
+      const { error: upErr } = await supabase.from("generated_comments").update({ text: next }).eq("id", commentId);
+      if (upErr) throw upErr;
+      toast.success("Selection rewritten");
+      setRewriteState(null);
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed");
+      setRewriteState((s) => (s ? { ...s, loading: false } : s));
+    }
+  };
 
   const load = async () => {
     if (!id) return;
@@ -276,6 +332,9 @@ export default function ReviewExport() {
                       {spellIds[r.student_id] ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <SpellCheck className="w-3.5 h-3.5 mr-1.5" />}
                       Spelling & grammar
                     </Button>
+                    <Button variant="ghost" size="sm" onClick={() => openRewrite(r.student_id, activeCommentId)} disabled={!activeCommentId || !editableIds[r.student_id]} title={!editableIds[r.student_id] ? "Click Manual edit first, then select text" : "Select text in the comment, then click"}>
+                      <Wand2 className="w-3.5 h-3.5 mr-1.5" />Rewrite selection
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => regen(r.student_id)} disabled={regenIds[r.student_id]}>
                       {regenIds[r.student_id] ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5" />}
                       Regenerate
@@ -319,6 +378,39 @@ export default function ReviewExport() {
           })}
         </div>
       )}
+
+      <Dialog open={!!rewriteState} onOpenChange={(o) => { if (!o && !rewriteState?.loading) setRewriteState(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rewrite selection</DialogTitle>
+            <DialogDescription>The AI will replace only the highlighted text, keeping the rest of the comment intact.</DialogDescription>
+          </DialogHeader>
+          {rewriteState && (
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Selected text</p>
+                <p className="text-sm bg-muted/40 rounded-md p-3 italic">"{rewriteState.selection}"</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Optional instruction</p>
+                <Input
+                  placeholder="e.g. make it shorter, mention effort, soften the tone"
+                  value={rewriteState.instruction}
+                  onChange={(e) => setRewriteState((s) => (s ? { ...s, instruction: e.target.value } : s))}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !rewriteState.loading) runRewrite(); }}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRewriteState(null)} disabled={rewriteState?.loading}>Cancel</Button>
+            <Button onClick={runRewrite} disabled={rewriteState?.loading}>
+              {rewriteState?.loading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Wand2 className="w-4 h-4 mr-1.5" />}
+              Rewrite
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
