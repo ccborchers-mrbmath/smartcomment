@@ -33,6 +33,7 @@ export default function ReviewExport() {
   const [editableIds, setEditableIds] = useState<Record<string, boolean>>({});
   const [selectedVersion, setSelectedVersion] = useState<Record<string, string>>({});
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const [selections, setSelections] = useState<Record<string, { start: number; end: number }>>({});
   const [rewriteState, setRewriteState] = useState<{
     sid: string;
     commentId: string;
@@ -45,17 +46,18 @@ export default function ReviewExport() {
 
   const openRewrite = (sid: string, commentId: string | null) => {
     if (!commentId) return;
-    const el = textareaRefs.current[sid];
-    if (!el) return;
-    const start = el.selectionStart ?? 0;
-    const end = el.selectionEnd ?? 0;
-    if (start === end) {
+    const sel = selections[sid];
+    const value = edits[sid] ?? "";
+    if (!sel || sel.start === sel.end) {
       toast.error("Select some text in the comment first");
       return;
     }
-    const value = el.value;
-    const selection = value.slice(start, end);
-    setRewriteState({ sid, commentId, selStart: start, selEnd: end, selection, instruction: "", loading: false });
+    const selection = value.slice(sel.start, sel.end);
+    if (!selection.trim()) {
+      toast.error("Select some text in the comment first");
+      return;
+    }
+    setRewriteState({ sid, commentId, selStart: sel.start, selEnd: sel.end, selection, instruction: "", loading: false });
   };
 
   const runRewrite = async () => {
