@@ -378,6 +378,39 @@ export default function ReviewExport() {
           })}
         </div>
       )}
+
+      <Dialog open={!!rewriteState} onOpenChange={(o) => { if (!o && !rewriteState?.loading) setRewriteState(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rewrite selection</DialogTitle>
+            <DialogDescription>The AI will replace only the highlighted text, keeping the rest of the comment intact.</DialogDescription>
+          </DialogHeader>
+          {rewriteState && (
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Selected text</p>
+                <p className="text-sm bg-muted/40 rounded-md p-3 italic">"{rewriteState.selection}"</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Optional instruction</p>
+                <Input
+                  placeholder="e.g. make it shorter, mention effort, soften the tone"
+                  value={rewriteState.instruction}
+                  onChange={(e) => setRewriteState((s) => (s ? { ...s, instruction: e.target.value } : s))}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !rewriteState.loading) runRewrite(); }}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRewriteState(null)} disabled={rewriteState?.loading}>Cancel</Button>
+            <Button onClick={runRewrite} disabled={rewriteState?.loading}>
+              {rewriteState?.loading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Wand2 className="w-4 h-4 mr-1.5" />}
+              Rewrite
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
