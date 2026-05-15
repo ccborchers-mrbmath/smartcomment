@@ -121,7 +121,7 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
 - If the notes contain a name spelled differently, treat that as referring to THIS student and silently use the roster spelling instead.
 - Use ONLY the student's first name (the first whitespace-separated word of the NAME field) every time you refer to them. NEVER use the surname, last name, family name, or full name. Do not use initials. Do not use "Mr/Mrs/Ms [Surname]". If the NAME field is "Aleisha Thompson", refer to the student only as "Aleisha" — never "Aleisha Thompson", never "Thompson", never "Miss Thompson".${instruction ? `\n\nADDITIONAL INSTRUCTION: ${instruction}` : ""}`;
 
-    const studentBlocks = students.map((s) => {
+    const buildBlock = (s: any) => {
       const allowedTerms: string[] = (s as any).included_terms ?? ["2026 Term 1","2026 Term 2","2026 Term 3","2026 Term 4"];
       const allowedSet = new Set(allowedTerms);
       const myInputs = (inputs ?? []).filter((i: any) => i.student_id === s.id && allowedSet.has(i.term ?? "2026 Term 2"));
@@ -140,76 +140,117 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
       delete otherOv.gender;
       const ovText = Object.keys(otherOv).length ? `Per-student override: ${JSON.stringify(otherOv)}` : "";
       return `STUDENT_ID: ${s.id}\nNAME: ${s.name}\nPRONOUNS: ${pronouns}\nNOTES:\n${notes || "(no notes)"}\n${ovText}`;
-    }).join("\n\n========\n\n");
+    };
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate one report comment for each of the following students.\n\n${studentBlocks}` },
-        ],
-        tools: [{
-          type: "function",
-          function: {
-            name: "return_comments",
-            description: "Return the generated comments per student.",
-            parameters: {
-              type: "object",
-              properties: {
-                comments: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      student_id: { type: "string" },
-                      text: { type: "string" },
+    const callBatch = async (batch: any[]): Promise<{ comments: { student_id: string; text: string }[]; error?: { status: number; message: string } }> => {
+      const studentBlocks = batch.map(buildBlock).join("\n\n========\n\n");
+      const doFetch = () => fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-pro",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Generate one report comment for each of the following students.\n\n${studentBlocks}` },
+          ],
+          tools: [{
+            type: "function",
+            function: {
+              name: "return_comments",
+              description: "Return the generated comments per student.",
+              parameters: {
+                type: "object",
+                properties: {
+                  comments: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        student_id: { type: "string" },
+                        text: { type: "string" },
+                      },
+                      required: ["student_id", "text"],
+                      additionalProperties: false,
                     },
-                    required: ["student_id", "text"],
-                    additionalProperties: false,
                   },
                 },
+                required: ["comments"],
+                additionalProperties: false,
               },
-              required: ["comments"],
-              additionalProperties: false,
             },
-          },
-        }],
-        tool_choice: { type: "function", function: { name: "return_comments" } },
-      }),
-    });
-
-    if (res.status === 429) return new Response(JSON.stringify({ error: "Rate limit reached. Try again shortly." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    if (res.status === 402) return new Response(JSON.stringify({ error: "AI credits exhausted. Add credits in workspace settings." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    if (!res.ok) {
-      const t = await res.text();
-      throw new Error(`AI gateway: ${res.status} ${t}`);
-    }
-    const data = await res.json();
-    const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-    const parsed = args ? JSON.parse(args) : { comments: [] };
-
-    // Persist as new versions
-    for (const c of parsed.comments) {
-      const { data: existing } = await supabase
-        .from("generated_comments")
-        .select("version")
-        .eq("student_id", c.student_id)
-        .order("version", { ascending: false })
-        .limit(1);
-      const nextVersion = (existing?.[0]?.version ?? 0) + 1;
-      await supabase.from("generated_comments").insert({
-        student_id: c.student_id,
-        teacher_id: user.id,
-        text: c.text,
-        version: nextVersion,
-        model: "google/gemini-2.5-pro",
+          }],
+          tool_choice: { type: "function", function: { name: "return_comments" } },
+        }),
       });
+
+      let res = await doFetch();
+      if (res.status === 429) {
+        await new Promise((r) => setTimeout(r, 1500));
+        res = await doFetch();
+      }
+      if (res.status === 429) return { comments: [], error: { status: 429, message: "Rate limit reached. Try again shortly." } };
+      if (res.status === 402) return { comments: [], error: { status: 402, message: "AI credits exhausted. Add credits in workspace settings." } };
+      if (!res.ok) {
+        const t = await res.text();
+        console.error(`AI gateway batch error ${res.status}: ${t}`);
+        return { comments: [], error: { status: res.status, message: `AI gateway: ${res.status}` } };
+      }
+      const data = await res.json();
+      const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+      const parsed = args ? JSON.parse(args) : { comments: [] };
+
+      // Persist as new versions
+      for (const c of parsed.comments) {
+        const { data: existing } = await supabase
+          .from("generated_comments")
+          .select("version")
+          .eq("student_id", c.student_id)
+          .order("version", { ascending: false })
+          .limit(1);
+        const nextVersion = (existing?.[0]?.version ?? 0) + 1;
+        await supabase.from("generated_comments").insert({
+          student_id: c.student_id,
+          teacher_id: user.id,
+          text: c.text,
+          version: nextVersion,
+          model: "google/gemini-2.5-pro",
+        });
+      }
+      return { comments: parsed.comments ?? [] };
+    };
+
+    // Chunk students into small batches and run with bounded concurrency
+    const BATCH_SIZE = 3;
+    const CONCURRENCY = 3;
+    const batches: any[][] = [];
+    for (let i = 0; i < students.length; i += BATCH_SIZE) {
+      batches.push(students.slice(i, i + BATCH_SIZE));
     }
 
-    return new Response(JSON.stringify(parsed), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const allComments: { student_id: string; text: string }[] = [];
+    let firstError: { status: number; message: string } | null = null;
+    let aborted = false;
+
+    for (let i = 0; i < batches.length; i += CONCURRENCY) {
+      if (aborted) break;
+      const wave = batches.slice(i, i + CONCURRENCY);
+      const results = await Promise.all(wave.map((b) => callBatch(b)));
+      for (const r of results) {
+        if (r.comments.length) allComments.push(...r.comments);
+        if (r.error && !firstError) {
+          firstError = r.error;
+          if (r.error.status === 402) aborted = true;
+        }
+      }
+    }
+
+    if (allComments.length === 0 && firstError) {
+      return new Response(JSON.stringify({ error: firstError.message }), { status: firstError.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const payload: any = { comments: allComments };
+    if (firstError) payload.partial_error = firstError.message;
+    return new Response(JSON.stringify(payload), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error(e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "unknown" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
