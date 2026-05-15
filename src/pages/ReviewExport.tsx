@@ -33,6 +33,60 @@ export default function ReviewExport() {
   const [editableIds, setEditableIds] = useState<Record<string, boolean>>({});
   const [selectedVersion, setSelectedVersion] = useState<Record<string, string>>({});
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const [rewriteState, setRewriteState] = useState<{
+    sid: string;
+    commentId: string;
+    selStart: number;
+    selEnd: number;
+    selection: string;
+    instruction: string;
+    loading: boolean;
+  } | null>(null);
+
+  const openRewrite = (sid: string, commentId: string | null) => {
+    if (!commentId) return;
+    const el = textareaRefs.current[sid];
+    if (!el) return;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? 0;
+    if (start === end) {
+      toast.error("Select some text in the comment first");
+      return;
+    }
+    const value = el.value;
+    const selection = value.slice(start, end);
+    setRewriteState({ sid, commentId, selStart: start, selEnd: end, selection, instruction: "", loading: false });
+  };
+
+  const runRewrite = async () => {
+    if (!rewriteState) return;
+    const { sid, commentId, selStart, selEnd, selection, instruction } = rewriteState;
+    const fullComment = edits[sid] ?? "";
+    if (fullComment.slice(selStart, selEnd) !== selection) {
+      toast.error("The comment changed since you opened this. Reselect and try again.");
+      setRewriteState(null);
+      return;
+    }
+    setRewriteState({ ...rewriteState, loading: true });
+    try {
+      const { data, error } = await supabase.functions.invoke("rewrite-selection", {
+        body: { studentId: sid, fullComment, selection, instruction: instruction.trim() || undefined },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const replacement = (data?.text ?? "").trim();
+      if (!replacement) throw new Error("Empty response");
+      const next = fullComment.slice(0, selStart) + replacement + fullComment.slice(selEnd);
+      setEdits((p) => ({ ...p, [sid]: next }));
+      const { error: upErr } = await supabase.from("generated_comments").update({ text: next }).eq("id", commentId);
+      if (upErr) throw upErr;
+      toast.success("Selection rewritten");
+      setRewriteState(null);
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed");
+      setRewriteState((s) => (s ? { ...s, loading: false } : s));
+    }
+  };
 
   const load = async () => {
     if (!id) return;
