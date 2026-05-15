@@ -1,6 +1,6 @@
 import React from "react";
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from "remotion";
-import { colors } from "./theme";
+import { colors } from "../theme";
 
 export const Background: React.FC = () => {
   const frame = useCurrentFrame();
