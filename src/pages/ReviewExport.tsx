@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Copy, Download, Loader2, Pencil, SpellCheck, Sparkles, ChevronDown, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 
 type Version = { id: string; text: string; version: number; created_at: string };
 type Row = {
@@ -172,6 +173,27 @@ export default function ReviewExport() {
     URL.revokeObjectURL(url);
   };
 
+  const exportDocx = async () => {
+    const children: Paragraph[] = [
+      new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(`${klass?.name ?? "Class"} — Comments`)] }),
+    ];
+    rows.forEach((r) => {
+      children.push(
+        new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 240, after: 80 }, children: [new TextRun(r.student_name)] }),
+        new Paragraph({ children: [new TextRun(edits[r.student_id] ?? "")] }),
+      );
+    });
+    const doc = new Document({ sections: [{ children }] });
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${klass?.name ?? "class"}-comments.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("DOCX exported");
+  };
+
   const reqs = klass?.requirements ?? {};
   const wordCount = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 
@@ -190,6 +212,7 @@ export default function ReviewExport() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={copyAll}><Copy className="w-4 h-4 mr-1.5" />Copy all</Button>
           <Button variant="outline" onClick={exportCsv}><Download className="w-4 h-4 mr-1.5" />Export CSV</Button>
+          <Button variant="outline" onClick={exportDocx}><Download className="w-4 h-4 mr-1.5" />Export DOCX</Button>
         </div>
       </div>
 
