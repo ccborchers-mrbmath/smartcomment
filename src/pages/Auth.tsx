@@ -66,11 +66,32 @@ export default function Auth() {
 
   return (
     <main className="min-h-screen bg-gradient-warm flex items-center justify-center p-6">
-      <div className="w-full max-w-md">
-        <Link to="/" className="flex items-center gap-2 mb-8 text-foreground">
-          <Sparkles className="w-5 h-5 text-accent" />
-          <span className="font-display text-2xl">SmartComment</span>
-        </Link>
+      <div className="w-full max-w-6xl grid lg:grid-cols-[1.3fr_1fr] gap-10 items-center">
+        <div className="space-y-6">
+          <Link to="/" className="flex items-center gap-2 text-foreground">
+            <Sparkles className="w-5 h-5 text-accent" />
+            <span className="font-display text-2xl">SmartComment</span>
+          </Link>
+          <div>
+            <h2 className="font-display text-4xl md:text-5xl leading-tight text-foreground">
+              Report comments, <em className="text-accent not-italic">reimagined.</em>
+            </h2>
+            <p className="text-muted-foreground mt-3 text-lg">
+              Snap it. Say it. Paste it. See how it works in 60 seconds.
+            </p>
+          </div>
+          <div className="rounded-2xl overflow-hidden shadow-elevated border border-border/50 bg-card">
+            <video
+              src="/smartcomment-explainer.mp4"
+              controls
+              playsInline
+              preload="metadata"
+              poster=""
+              className="w-full aspect-video bg-foreground"
+            />
+          </div>
+        </div>
+        <div className="w-full max-w-md justify-self-center lg:justify-self-end">
         <Card className="p-8 shadow-elevated border-border/50">
           <h1 className="font-display text-3xl mb-2">
             {mode === "signin" ? "Welcome back" : "Get started"}
