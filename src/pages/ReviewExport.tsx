@@ -212,6 +212,7 @@ export default function ReviewExport() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={copyAll}><Copy className="w-4 h-4 mr-1.5" />Copy all</Button>
           <Button variant="outline" onClick={exportCsv}><Download className="w-4 h-4 mr-1.5" />Export CSV</Button>
+          <Button variant="outline" onClick={exportDocx}><Download className="w-4 h-4 mr-1.5" />Export DOCX</Button>
         </div>
       </div>
 
