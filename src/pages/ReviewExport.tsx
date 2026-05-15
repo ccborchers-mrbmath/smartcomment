@@ -363,6 +363,10 @@ export default function ReviewExport() {
                       readOnly={!editableIds[r.student_id]}
                       className={!editableIds[r.student_id] ? "bg-muted/40 cursor-default focus-visible:ring-0 focus-visible:ring-offset-0" : ""}
                       onChange={(e) => setEdits((p) => ({ ...p, [r.student_id]: e.target.value }))}
+                      onSelect={(e) => {
+                        const t = e.currentTarget;
+                        setSelections((p) => ({ ...p, [r.student_id]: { start: t.selectionStart ?? 0, end: t.selectionEnd ?? 0 } }));
+                      }}
                       onBlur={() => {
                         if (editableIds[r.student_id]) {
                           saveEdit(r.student_id, activeCommentId);
