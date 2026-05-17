@@ -15,6 +15,8 @@ import Requirements from "./pages/Requirements";
 import SchoolRequirements from "./pages/SchoolRequirements";
 import Feedback from "./pages/Feedback";
 import ReviewExport from "./pages/ReviewExport";
+import Billing from "./pages/Billing";
+import VerifySchool from "./pages/VerifySchool";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +39,8 @@ const App = () => (
             <Route path="/requirements" element={<ProtectedRoute><Requirements /></ProtectedRoute>} />
             <Route path="/school" element={<ProtectedRoute><SchoolRequirements /></ProtectedRoute>} />
             <Route path="/feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
+            <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+            <Route path="/verify-school" element={<VerifySchool />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

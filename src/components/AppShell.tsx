@@ -1,13 +1,38 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Sparkles, BookOpen, LogOut, Library, Settings, School, Inbox } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Sparkles, BookOpen, LogOut, Library, Settings, School, Inbox, CreditCard, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import FeedbackDialog from "@/components/FeedbackDialog";
 
+function trialDaysLeft(startIso: string): number {
+  const end = new Date(startIso).getTime() + 30 * 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.ceil((end - Date.now()) / (24 * 60 * 60 * 1000)));
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [status, setStatus] = useState<{ sponsored: boolean; daysLeft: number; sub: string } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("profiles")
+      .select("school_sponsored, trial_started_at, subscription_status")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        setStatus({
+          sponsored: !!data.school_sponsored,
+          daysLeft: trialDaysLeft(data.trial_started_at),
+          sub: data.subscription_status,
+        });
+      });
+  }, [user]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -37,6 +62,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <Button variant="ghost" size="sm" asChild>
                 <Link to="/feedback"><Inbox className="w-4 h-4 mr-1.5" />Inbox</Link>
               </Button>
+            )}
+            {status && (
+              <Link to="/billing" className="shrink-0">
+                {status.sponsored ? (
+                  <Badge className="bg-accent text-accent-foreground gap-1">
+                    <GraduationCap className="w-3 h-3" />School
+                  </Badge>
+                ) : status.sub === "active" ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <CreditCard className="w-3 h-3" />Pro
+                  </Badge>
+                ) : status.daysLeft > 0 ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <Sparkles className="w-3 h-3" />Trial · {status.daysLeft}d
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive" className="gap-1">
+                    Trial ended
+                  </Badge>
+                )}
+              </Link>
             )}
             <span className="hidden sm:inline text-sm text-muted-foreground mx-3">{user?.email}</span>
             <Button variant="ghost" size="sm" onClick={signOut}>
