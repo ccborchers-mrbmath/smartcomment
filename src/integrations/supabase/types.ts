@@ -159,23 +159,41 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          credits_balance: number
           email: string | null
           full_name: string | null
           id: string
+          school_email: string | null
+          school_email_verified_at: string | null
+          school_sponsored: boolean
+          subscription_status: string
+          trial_started_at: string
           updated_at: string
         }
         Insert: {
           created_at?: string
+          credits_balance?: number
           email?: string | null
           full_name?: string | null
           id: string
+          school_email?: string | null
+          school_email_verified_at?: string | null
+          school_sponsored?: boolean
+          subscription_status?: string
+          trial_started_at?: string
           updated_at?: string
         }
         Update: {
           created_at?: string
+          credits_balance?: number
           email?: string | null
           full_name?: string | null
           id?: string
+          school_email?: string | null
+          school_email_verified_at?: string | null
+          school_sponsored?: boolean
+          subscription_status?: string
+          trial_started_at?: string
           updated_at?: string
         }
         Relationships: []
@@ -205,6 +223,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      school_email_verifications: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          token_hash: string
+          user_id: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          token_hash: string
+          user_id: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          token_hash?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       schools: {
         Row: {
@@ -384,10 +432,12 @@ export type Database = {
     }
     Functions: {
       email_domain: { Args: { _uid: string }; Returns: string }
+      has_active_access: { Args: { _uid: string }; Returns: boolean }
       is_school_admin: {
         Args: { _school_id: string; _uid: string }
         Returns: boolean
       }
+      is_school_domain_allowed: { Args: { _email: string }; Returns: boolean }
       is_super_admin: { Args: { _uid: string }; Returns: boolean }
       school_for_user: { Args: { _uid: string }; Returns: string }
     }
