@@ -199,6 +199,7 @@ export default function StudentCard() {
           .select("id, transcript")
           .single();
         if (insErr) throw insErr;
+        if (!created) throw new Error("Could not save transcription");
         setHandwritingDraftId(created.id);
         setHandwritingDraftText(created.transcript ?? "");
         toast.success("Photo transcribed");
