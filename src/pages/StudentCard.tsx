@@ -72,8 +72,6 @@ export default function StudentCard() {
   };
 
   useEffect(() => {
-    setHandwritingDraftId(null);
-    setHandwritingDraftText("");
     load();
   }, [id]);
 
