@@ -46,6 +46,8 @@ export default function StudentCard() {
   const [editText, setEditText] = useState("");
   const [showAllTerms, setShowAllTerms] = useState(false);
   const [pendingCrop, setPendingCrop] = useState<File | null>(null);
+  const [handwritingDraftId, setHandwritingDraftId] = useState<string | null>(null);
+  const [handwritingDraftText, setHandwritingDraftText] = useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -71,7 +73,11 @@ export default function StudentCard() {
     setInputs((ins ?? []) as Input[]);
   };
 
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => {
+    setHandwritingDraftId(null);
+    setHandwritingDraftText("");
+    load();
+  }, [id]);
 
   const saveTyped = async () => {
     if (!typed.trim() || !student) return;
@@ -147,40 +153,57 @@ export default function StudentCard() {
   };
 
   const uploadHandwriting = async (files: File[]) => {
-    if (!student || files.length === 0) return;
+    const file = files[0];
+    if (!student || !file) return;
     setBusy(true);
     try {
       const { data: u } = await supabase.auth.getUser();
-      const stamp = Date.now();
-      const paths: string[] = [];
-      // Upload pages sequentially so we never hold more than one large blob in flight.
-      for (let i = 0; i < files.length; i++) {
-        const f = files[i];
-        const path = `${u.user!.id}/${student.id}/${stamp}-p${i + 1}-${f.name}`;
-        const { error: upErr } = await supabase.storage.from("handwriting").upload(path, f, {
-          contentType: f.type || "image/jpeg",
-        });
-        if (upErr) throw upErr;
-        paths.push(path);
-      }
-      // Hand the storage paths to the edge function — it will stream each image
-      // from storage. This avoids base64-encoding everything in the browser and
-      // sending a huge request body (the source of "low memory" on phones).
+      const path = `${u.user!.id}/${student.id}/${Date.now()}-${file.name}`;
+      const { error: upErr } = await supabase.storage.from("handwriting").upload(path, file, {
+        contentType: file.type || "image/jpeg",
+      });
+      if (upErr) throw upErr;
       const { data, error } = await supabase.functions.invoke("ocr-handwriting", {
-        body: { bucket: "handwriting", paths },
+        body: { bucket: "handwriting", paths: [path], continuation: Boolean(handwritingDraftId) },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      const { error: insErr } = await supabase.from("student_inputs").insert({
-        student_id: student.id,
-        teacher_id: u.user!.id,
-        type: "handwriting",
-        transcript: data?.text ?? "",
-        media_path: paths[0],
-        term: activeTerm,
-      });
-      if (insErr) throw insErr;
-      toast.success(files.length > 1 ? `${files.length} pages transcribed` : "Note transcribed");
+      const nextPageText = (data?.text ?? "").trim();
+      if (handwritingDraftId) {
+        const { data: existing, error: readErr } = await supabase
+          .from("student_inputs")
+          .select("transcript")
+          .eq("id", handwritingDraftId)
+          .single();
+        if (readErr) throw readErr;
+        const nextText = [(existing?.transcript ?? handwritingDraftText).trim(), nextPageText].filter(Boolean).join("\n");
+        const { error: updErr } = await supabase
+          .from("student_inputs")
+          .update({ transcript: nextText })
+          .eq("id", handwritingDraftId);
+        if (updErr) throw updErr;
+        void supabase.storage.from("handwriting").remove([path]);
+        setHandwritingDraftText(nextText);
+        toast.success("Continuation added");
+      } else {
+        const { data: created, error: insErr } = await supabase
+          .from("student_inputs")
+          .insert({
+            student_id: student.id,
+            teacher_id: u.user!.id,
+            type: "handwriting",
+            transcript: nextPageText,
+            media_path: path,
+            term: activeTerm,
+          })
+          .select("id, transcript")
+          .single();
+        if (insErr) throw insErr;
+        if (!created) throw new Error("Could not save transcription");
+        setHandwritingDraftId(created.id);
+        setHandwritingDraftText(created.transcript ?? "");
+        toast.success("Photo transcribed");
+      }
       load();
     } catch (e: any) {
       toast.error(e.message ?? "Failed");
@@ -222,6 +245,10 @@ export default function StudentCard() {
       await supabase.storage.from(bucket).remove([input.media_path]);
     }
     await supabase.from("student_inputs").delete().eq("id", input.id);
+    if (handwritingDraftId === input.id) {
+      setHandwritingDraftId(null);
+      setHandwritingDraftText("");
+    }
     load();
   };
 
@@ -303,10 +330,19 @@ export default function StudentCard() {
               {busy && <p className="text-sm text-muted-foreground mt-3">Transcribing…</p>}
             </TabsContent>
             <TabsContent value="hand" className="mt-4 space-y-3">
+              {handwritingDraftId && (
+                <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2">
+                  <p className="text-sm font-medium">Continuing the same handwritten comment</p>
+                  <p className="text-xs text-muted-foreground">Each new photo is transcribed separately and added to the current note.</p>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => { setHandwritingDraftId(null); setHandwritingDraftText(""); }}>
+                    Done with this comment
+                  </Button>
+                </div>
+              )}
               <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:bg-muted/50">
                 {busy ? <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /> : <>
                   <Camera className="w-6 h-6 mb-2 text-muted-foreground" />
-                  <span className="text-sm">Take photo</span>
+                  <span className="text-sm">{handwritingDraftId ? "Take continuation photo" : "Take photo"}</span>
                 </>}
                 <input type="file" className="hidden" accept="image/*" capture="environment" disabled={busy}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingCrop(f); e.target.value = ""; }} />
@@ -314,7 +350,7 @@ export default function StudentCard() {
               <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:bg-muted/50">
                 {busy ? <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /> : <>
                   <ImageIcon className="w-6 h-6 mb-2 text-muted-foreground" />
-                  <span className="text-sm">Upload image from device</span>
+                  <span className="text-sm">{handwritingDraftId ? "Upload continuation image" : "Upload image from device"}</span>
                 </>}
                 <input type="file" className="hidden" accept="image/*" disabled={busy}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingCrop(f); e.target.value = ""; }} />
