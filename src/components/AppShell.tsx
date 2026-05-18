@@ -62,20 +62,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <Link to="/requirements"><Settings className="w-4 h-4 mr-1.5" />Requirements</Link>
             </Button>
             <FeedbackDialog />
-            {isSchoolAdmin && (
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/school/invoice"><FileText className="w-4 h-4 mr-1.5" />Invoice</Link>
-              </Button>
-            )}
+            {/* Invoice + Domains nav links temporarily hidden until ready to roll out to school admins.
+                Routes still work directly for testing: /school/invoice and /admin/domains */}
             {user?.email?.toLowerCase() === "ccborchers@gmail.com" && (
-              <>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/admin/domains"><Globe className="w-4 h-4 mr-1.5" />Domains</Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/feedback"><Inbox className="w-4 h-4 mr-1.5" />Inbox</Link>
-                </Button>
-              </>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/feedback"><Inbox className="w-4 h-4 mr-1.5" />Inbox</Link>
+              </Button>
             )}
             {status && (
               <Link to="/billing" className="shrink-0">
