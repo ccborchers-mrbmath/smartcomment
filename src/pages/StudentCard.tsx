@@ -415,7 +415,7 @@ export default function StudentCard() {
       <ImageCropDialog
         file={pendingCrop}
         onCancel={() => setPendingCrop(null)}
-        onConfirm={(f) => { setPendingCrop(null); uploadHandwriting(f); }}
+        onConfirm={(files) => { setPendingCrop(null); uploadHandwriting(files); }}
       />
     </AppShell>
   );
