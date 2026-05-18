@@ -69,6 +69,7 @@ serve(async (req) => {
     const data = await res.json();
     const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
     const parsed = args ? JSON.parse(args) : { names: [] };
+    if (userId) await logUsage({ userId, functionName: "extract-roster", model: "google/gemini-2.5-flash", units: parsed.names?.length ?? 0, usage: data.usage });
     return new Response(JSON.stringify(parsed), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error(e);
