@@ -22,10 +22,27 @@ serve(async (req) => {
       const { data: u } = await sb.auth.getUser();
       userId = u?.user?.id ?? null;
     }
-    const { imageBase64, mimeType } = await req.json();
-    if (!imageBase64) {
-      return new Response(JSON.stringify({ error: "Missing imageBase64" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const body = await req.json();
+    // Accept either { imageBase64, mimeType } (single, legacy) or { images: [{ base64, mimeType }] } (multi-page)
+    const images: { base64: string; mimeType?: string }[] = Array.isArray(body.images) && body.images.length
+      ? body.images
+      : body.imageBase64
+      ? [{ base64: body.imageBase64, mimeType: body.mimeType }]
+      : [];
+    if (images.length === 0) {
+      return new Response(JSON.stringify({ error: "Missing images" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+
+    const systemPrompt = images.length > 1
+      ? "You transcribe handwritten teacher notes verbatim. The user will provide MULTIPLE photos that are CONSECUTIVE PAGES of the SAME comment (a single comment that runs across multiple pages of a bound book). Concatenate the transcription in order, preserving line breaks. Output ONLY the transcribed text — no commentary, no page markers, no headers."
+      : "You transcribe handwritten teacher notes verbatim. Output only the transcribed text — no commentary, no formatting changes beyond preserving line breaks.";
+
+    const userContent: any[] = [
+      { type: "text", text: images.length > 1
+        ? `Transcribe these ${images.length} consecutive pages of one handwritten comment, in order.`
+        : "Transcribe these handwritten notes." },
+      ...images.map((img) => ({ type: "image_url", image_url: { url: `data:${img.mimeType ?? "image/png"};base64,${img.base64}` } })),
+    ];
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -33,11 +50,8 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: "You transcribe handwritten teacher notes verbatim. Output only the transcribed text — no commentary, no formatting changes beyond preserving line breaks." },
-          { role: "user", content: [
-            { type: "text", text: "Transcribe these handwritten notes." },
-            { type: "image_url", image_url: { url: `data:${mimeType ?? "image/png"};base64,${imageBase64}` } },
-          ]},
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent },
         ],
       }),
     });
@@ -47,7 +61,7 @@ serve(async (req) => {
     if (!res.ok) throw new Error(`AI gateway: ${res.status}`);
     const data = await res.json();
     const text = data.choices?.[0]?.message?.content ?? "";
-    if (userId) await logUsage({ userId, functionName: "ocr-handwriting", model: "google/gemini-2.5-flash", units: 1, usage: data.usage });
+    if (userId) await logUsage({ userId, functionName: "ocr-handwriting", model: "google/gemini-2.5-flash", units: images.length, usage: data.usage, metadata: { pages: images.length } });
     return new Response(JSON.stringify({ text }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "unknown" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });

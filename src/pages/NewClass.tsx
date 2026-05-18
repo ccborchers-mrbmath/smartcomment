@@ -342,7 +342,7 @@ export default function NewClass() {
       <ImageCropDialog
         file={pendingCrop}
         onCancel={() => setPendingCrop(null)}
-        onConfirm={(f) => { setPendingCrop(null); handleFile(f); }}
+        onConfirm={(files) => { setPendingCrop(null); if (files[0]) handleFile(files[0]); }}
       />
     </AppShell>
   );
