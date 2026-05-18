@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.attribute_usage(uuid) FROM authenticated;
