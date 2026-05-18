@@ -426,11 +426,79 @@ export type Database = {
         }
         Relationships: []
       }
+      usage_events: {
+        Row: {
+          attributed_domain: string | null
+          cost_usd_estimate: number
+          created_at: string
+          credits_used: number
+          function_name: string
+          id: string
+          metadata: Json
+          school_id: string | null
+          units: number
+          user_id: string
+        }
+        Insert: {
+          attributed_domain?: string | null
+          cost_usd_estimate?: number
+          created_at?: string
+          credits_used?: number
+          function_name: string
+          id?: string
+          metadata?: Json
+          school_id?: string | null
+          units?: number
+          user_id: string
+        }
+        Update: {
+          attributed_domain?: string | null
+          cost_usd_estimate?: number
+          created_at?: string
+          credits_used?: number
+          function_name?: string
+          id?: string
+          metadata?: Json
+          school_id?: string | null
+          units?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      usage_by_domain_daily: {
+        Row: {
+          cost_usd: number | null
+          credits: number | null
+          day: string | null
+          domain: string | null
+          events: number | null
+          units: number | null
+        }
+        Relationships: []
+      }
+      usage_by_school_monthly: {
+        Row: {
+          active_users: number | null
+          cost_usd: number | null
+          credits: number | null
+          events: number | null
+          month: string | null
+          school_id: string | null
+          units: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      attribute_usage: {
+        Args: { _uid: string }
+        Returns: {
+          domain: string
+          school_id: string
+        }[]
+      }
       email_domain: { Args: { _uid: string }; Returns: string }
       has_active_access: { Args: { _uid: string }; Returns: boolean }
       is_school_admin: {

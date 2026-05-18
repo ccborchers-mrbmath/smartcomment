@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { logUsage } from "../_shared/usage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -198,6 +199,16 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
       const data = await res.json();
       const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
       const parsed = args ? JSON.parse(args) : { comments: [] };
+
+      await logUsage({
+        userId: user.id,
+        functionName: "generate-comments",
+        model: "google/gemini-2.5-pro",
+        units: parsed.comments?.length ?? 0,
+        usage: data.usage,
+        metadata: { batch_size: batch.length },
+      });
+
 
       // Persist as new versions
       for (const c of parsed.comments) {
