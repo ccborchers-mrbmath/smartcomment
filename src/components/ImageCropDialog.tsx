@@ -36,7 +36,7 @@ const canvasToFile = (canvas: HTMLCanvasElement, name: string, mime: string): Pr
     canvas.toBlob(
       (b) => (b ? resolve(new File([b], name, { type: mime })) : reject(new Error("encode failed"))),
       mime,
-      0.88,
+      0.82,
     );
   });
 
