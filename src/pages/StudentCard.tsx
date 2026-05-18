@@ -160,46 +160,21 @@ export default function StudentCard() {
       });
       if (upErr) throw upErr;
       const { data, error } = await supabase.functions.invoke("ocr-handwriting", {
-        body: { bucket: "handwriting", paths: [path], continuation: Boolean(handwritingDraftId) },
+        body: { bucket: "handwriting", paths: [path] },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      const nextPageText = (data?.text ?? "").trim();
-      if (handwritingDraftId) {
-        const { data: existing, error: readErr } = await supabase
-          .from("student_inputs")
-          .select("transcript")
-          .eq("id", handwritingDraftId)
-          .single();
-        if (readErr) throw readErr;
-        const nextText = [(existing?.transcript ?? handwritingDraftText).trim(), nextPageText].filter(Boolean).join("\n");
-        const { error: updErr } = await supabase
-          .from("student_inputs")
-          .update({ transcript: nextText })
-          .eq("id", handwritingDraftId);
-        if (updErr) throw updErr;
-        void supabase.storage.from("handwriting").remove([path]);
-        setHandwritingDraftText(nextText);
-        toast.success("Continuation added");
-      } else {
-        const { data: created, error: insErr } = await supabase
-          .from("student_inputs")
-          .insert({
-            student_id: student.id,
-            teacher_id: u.user!.id,
-            type: "handwriting",
-            transcript: nextPageText,
-            media_path: path,
-            term: activeTerm,
-          })
-          .select("id, transcript")
-          .single();
-        if (insErr) throw insErr;
-        if (!created) throw new Error("Could not save transcription");
-        setHandwritingDraftId(created.id);
-        setHandwritingDraftText(created.transcript ?? "");
-        toast.success("Photo transcribed");
-      }
+      const text = (data?.text ?? "").trim();
+      const { error: insErr } = await supabase.from("student_inputs").insert({
+        student_id: student.id,
+        teacher_id: u.user!.id,
+        type: "handwriting",
+        transcript: text,
+        media_path: path,
+        term: activeTerm,
+      });
+      if (insErr) throw insErr;
+      toast.success("Photo transcribed");
       load();
     } catch (e: any) {
       toast.error(e.message ?? "Failed");
