@@ -46,6 +46,8 @@ export default function StudentCard() {
   const [editText, setEditText] = useState("");
   const [showAllTerms, setShowAllTerms] = useState(false);
   const [pendingCrop, setPendingCrop] = useState<File | null>(null);
+  const [handwritingDraftId, setHandwritingDraftId] = useState<string | null>(null);
+  const [handwritingDraftText, setHandwritingDraftText] = useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -147,40 +149,49 @@ export default function StudentCard() {
   };
 
   const uploadHandwriting = async (files: File[]) => {
-    if (!student || files.length === 0) return;
+    const file = files[0];
+    if (!student || !file) return;
     setBusy(true);
     try {
       const { data: u } = await supabase.auth.getUser();
-      const stamp = Date.now();
-      const paths: string[] = [];
-      // Upload pages sequentially so we never hold more than one large blob in flight.
-      for (let i = 0; i < files.length; i++) {
-        const f = files[i];
-        const path = `${u.user!.id}/${student.id}/${stamp}-p${i + 1}-${f.name}`;
-        const { error: upErr } = await supabase.storage.from("handwriting").upload(path, f, {
-          contentType: f.type || "image/jpeg",
-        });
-        if (upErr) throw upErr;
-        paths.push(path);
-      }
-      // Hand the storage paths to the edge function — it will stream each image
-      // from storage. This avoids base64-encoding everything in the browser and
-      // sending a huge request body (the source of "low memory" on phones).
+      const path = `${u.user!.id}/${student.id}/${Date.now()}-${file.name}`;
+      const { error: upErr } = await supabase.storage.from("handwriting").upload(path, file, {
+        contentType: file.type || "image/jpeg",
+      });
+      if (upErr) throw upErr;
       const { data, error } = await supabase.functions.invoke("ocr-handwriting", {
-        body: { bucket: "handwriting", paths },
+        body: { bucket: "handwriting", paths: [path], continuation: Boolean(handwritingDraftId) },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      const { error: insErr } = await supabase.from("student_inputs").insert({
-        student_id: student.id,
-        teacher_id: u.user!.id,
-        type: "handwriting",
-        transcript: data?.text ?? "",
-        media_path: paths[0],
-        term: activeTerm,
-      });
-      if (insErr) throw insErr;
-      toast.success(files.length > 1 ? `${files.length} pages transcribed` : "Note transcribed");
+      const nextPageText = (data?.text ?? "").trim();
+      if (handwritingDraftId) {
+        const nextText = [handwritingDraftText.trim(), nextPageText].filter(Boolean).join("\n");
+        const { error: updErr } = await supabase
+          .from("student_inputs")
+          .update({ transcript: nextText })
+          .eq("id", handwritingDraftId);
+        if (updErr) throw updErr;
+        setHandwritingDraftText(nextText);
+        toast.success("Continuation added");
+      } else {
+        const { data: created, error: insErr } = await supabase
+          .from("student_inputs")
+          .insert({
+            student_id: student.id,
+            teacher_id: u.user!.id,
+            type: "handwriting",
+            transcript: nextPageText,
+            media_path: path,
+            term: activeTerm,
+          })
+          .select("id, transcript")
+          .single();
+        if (insErr) throw insErr;
+        setHandwritingDraftId(created.id);
+        setHandwritingDraftText(created.transcript ?? "");
+        toast.success("Photo transcribed");
+      }
       load();
     } catch (e: any) {
       toast.error(e.message ?? "Failed");
@@ -222,6 +233,10 @@ export default function StudentCard() {
       await supabase.storage.from(bucket).remove([input.media_path]);
     }
     await supabase.from("student_inputs").delete().eq("id", input.id);
+    if (handwritingDraftId === input.id) {
+      setHandwritingDraftId(null);
+      setHandwritingDraftText("");
+    }
     load();
   };
 
