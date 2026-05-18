@@ -200,6 +200,16 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
       const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
       const parsed = args ? JSON.parse(args) : { comments: [] };
 
+      await logUsage({
+        userId: user.id,
+        functionName: "generate-comments",
+        model: "google/gemini-2.5-pro",
+        units: parsed.comments?.length ?? 0,
+        usage: data.usage,
+        metadata: { batch_size: batch.length },
+      });
+
+
       // Persist as new versions
       for (const c of parsed.comments) {
         const { data: existing } = await supabase
