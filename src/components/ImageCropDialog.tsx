@@ -14,7 +14,7 @@ type Props = {
 };
 
 const MAX_PAGES = 8;
-const MAX_DIMENSION = 2000; // downscale long edge to keep payload reasonable
+const MAX_DIMENSION = 1600; // long edge px — keeps decoded bitmaps small on phones
 
 const loadImage = (file: File): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
