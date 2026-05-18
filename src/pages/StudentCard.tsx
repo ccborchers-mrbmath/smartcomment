@@ -339,20 +339,20 @@ export default function StudentCard() {
                   </Button>
                 </div>
               )}
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:bg-muted/50">
+              <label className="relative flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:bg-muted/50 overflow-hidden">
                 {busy ? <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /> : <>
                   <Camera className="w-6 h-6 mb-2 text-muted-foreground" />
                   <span className="text-sm">{handwritingDraftId ? "Take continuation photo" : "Take photo"}</span>
                 </>}
-                <input type="file" className="hidden" accept="image/*" capture="environment" disabled={busy}
+                <input type="file" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" accept="image/*" capture="environment" disabled={busy} aria-label="Take photo"
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingCrop(f); e.target.value = ""; }} />
               </label>
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:bg-muted/50">
+              <label className="relative flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:bg-muted/50 overflow-hidden">
                 {busy ? <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /> : <>
                   <ImageIcon className="w-6 h-6 mb-2 text-muted-foreground" />
                   <span className="text-sm">{handwritingDraftId ? "Upload continuation image" : "Upload image from device"}</span>
                 </>}
-                <input type="file" className="hidden" accept="image/*" disabled={busy}
+                <input type="file" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" accept="image/*" disabled={busy} aria-label="Upload image from device"
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingCrop(f); e.target.value = ""; }} />
               </label>
             </TabsContent>
