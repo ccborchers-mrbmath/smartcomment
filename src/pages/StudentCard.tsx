@@ -182,7 +182,7 @@ export default function StudentCard() {
           .update({ transcript: nextText })
           .eq("id", handwritingDraftId);
         if (updErr) throw updErr;
-        supabase.storage.from("handwriting").remove([path]);
+        void supabase.storage.from("handwriting").remove([path]);
         setHandwritingDraftText(nextText);
         toast.success("Continuation added");
       } else {
