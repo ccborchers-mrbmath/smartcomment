@@ -216,10 +216,6 @@ export default function StudentCard() {
       await supabase.storage.from(bucket).remove([input.media_path]);
     }
     await supabase.from("student_inputs").delete().eq("id", input.id);
-    if (handwritingDraftId === input.id) {
-      setHandwritingDraftId(null);
-      setHandwritingDraftText("");
-    }
     load();
   };
 
