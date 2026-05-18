@@ -14,7 +14,7 @@ type Props = {
 };
 
 const MAX_PAGES = 8;
-const MAX_DIMENSION = 2000; // downscale long edge to keep payload reasonable
+const MAX_DIMENSION = 1600; // long edge px — keeps decoded bitmaps small on phones
 
 const loadImage = (file: File): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -36,7 +36,7 @@ const canvasToFile = (canvas: HTMLCanvasElement, name: string, mime: string): Pr
     canvas.toBlob(
       (b) => (b ? resolve(new File([b], name, { type: mime })) : reject(new Error("encode failed"))),
       mime,
-      0.88,
+      0.82,
     );
   });
 
