@@ -297,29 +297,12 @@ export default function StudentCard() {
               {busy && <p className="text-sm text-muted-foreground mt-3">Transcribing…</p>}
             </TabsContent>
             <TabsContent value="hand" className="mt-4 space-y-3">
-              {handwritingDraftId && (
-                <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2">
-                  <p className="text-sm font-medium">Continuing the same handwritten comment</p>
-                  <p className="text-xs text-muted-foreground">Each new photo is transcribed separately and added to the current note.</p>
-                  <Button type="button" variant="secondary" size="sm" onClick={() => { setHandwritingDraftId(null); setHandwritingDraftText(""); }}>
-                    Done with this comment
-                  </Button>
-                </div>
-              )}
               <label className="relative flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:bg-muted/50 overflow-hidden">
                 {busy ? <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /> : <>
                   <Camera className="w-6 h-6 mb-2 text-muted-foreground" />
-                  <span className="text-sm">{handwritingDraftId ? "Take continuation photo" : "Take photo"}</span>
+                  <span className="text-sm">Take photo</span>
                 </>}
                 <input type="file" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" accept="image/*" capture="environment" disabled={busy} aria-label="Take photo"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingCrop(f); e.target.value = ""; }} />
-              </label>
-              <label className="relative flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:bg-muted/50 overflow-hidden">
-                {busy ? <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /> : <>
-                  <ImageIcon className="w-6 h-6 mb-2 text-muted-foreground" />
-                  <span className="text-sm">{handwritingDraftId ? "Upload continuation image" : "Upload image from device"}</span>
-                </>}
-                <input type="file" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" accept="image/*" disabled={busy} aria-label="Upload image from device"
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingCrop(f); e.target.value = ""; }} />
               </label>
             </TabsContent>
