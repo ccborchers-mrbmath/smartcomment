@@ -46,8 +46,6 @@ export default function StudentCard() {
   const [editText, setEditText] = useState("");
   const [showAllTerms, setShowAllTerms] = useState(false);
   const [pendingCrop, setPendingCrop] = useState<File | null>(null);
-  const [handwritingDraftId, setHandwritingDraftId] = useState<string | null>(null);
-  const [handwritingDraftText, setHandwritingDraftText] = useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
