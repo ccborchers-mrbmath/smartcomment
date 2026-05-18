@@ -153,18 +153,21 @@ export default function StudentCard() {
       const { data: u } = await supabase.auth.getUser();
       const stamp = Date.now();
       const paths: string[] = [];
+      // Upload pages sequentially so we never hold more than one large blob in flight.
       for (let i = 0; i < files.length; i++) {
         const f = files[i];
         const path = `${u.user!.id}/${student.id}/${stamp}-p${i + 1}-${f.name}`;
-        const { error: upErr } = await supabase.storage.from("handwriting").upload(path, f);
+        const { error: upErr } = await supabase.storage.from("handwriting").upload(path, f, {
+          contentType: f.type || "image/jpeg",
+        });
         if (upErr) throw upErr;
         paths.push(path);
       }
-      const images = await Promise.all(
-        files.map(async (f) => ({ base64: await fileToBase64(f), mimeType: f.type })),
-      );
+      // Hand the storage paths to the edge function — it will stream each image
+      // from storage. This avoids base64-encoding everything in the browser and
+      // sending a huge request body (the source of "low memory" on phones).
       const { data, error } = await supabase.functions.invoke("ocr-handwriting", {
-        body: { images },
+        body: { bucket: "handwriting", paths },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
