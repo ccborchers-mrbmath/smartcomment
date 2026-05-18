@@ -71,9 +71,7 @@ export default function StudentCard() {
     setInputs((ins ?? []) as Input[]);
   };
 
-  useEffect(() => {
-    load();
-  }, [id]);
+  useEffect(() => { load(); }, [id]);
 
   const saveTyped = async () => {
     if (!typed.trim() || !student) return;
@@ -149,32 +147,40 @@ export default function StudentCard() {
   };
 
   const uploadHandwriting = async (files: File[]) => {
-    const file = files[0];
-    if (!student || !file) return;
+    if (!student || files.length === 0) return;
     setBusy(true);
     try {
       const { data: u } = await supabase.auth.getUser();
-      const path = `${u.user!.id}/${student.id}/${Date.now()}-${file.name}`;
-      const { error: upErr } = await supabase.storage.from("handwriting").upload(path, file, {
-        contentType: file.type || "image/jpeg",
-      });
-      if (upErr) throw upErr;
+      const stamp = Date.now();
+      const paths: string[] = [];
+      // Upload pages sequentially so we never hold more than one large blob in flight.
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        const path = `${u.user!.id}/${student.id}/${stamp}-p${i + 1}-${f.name}`;
+        const { error: upErr } = await supabase.storage.from("handwriting").upload(path, f, {
+          contentType: f.type || "image/jpeg",
+        });
+        if (upErr) throw upErr;
+        paths.push(path);
+      }
+      // Hand the storage paths to the edge function — it will stream each image
+      // from storage. This avoids base64-encoding everything in the browser and
+      // sending a huge request body (the source of "low memory" on phones).
       const { data, error } = await supabase.functions.invoke("ocr-handwriting", {
-        body: { bucket: "handwriting", paths: [path] },
+        body: { bucket: "handwriting", paths },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      const text = (data?.text ?? "").trim();
       const { error: insErr } = await supabase.from("student_inputs").insert({
         student_id: student.id,
         teacher_id: u.user!.id,
         type: "handwriting",
-        transcript: text,
-        media_path: path,
+        transcript: data?.text ?? "",
+        media_path: paths[0],
         term: activeTerm,
       });
       if (insErr) throw insErr;
-      toast.success("Photo transcribed");
+      toast.success(files.length > 1 ? `${files.length} pages transcribed` : "Note transcribed");
       load();
     } catch (e: any) {
       toast.error(e.message ?? "Failed");
@@ -297,12 +303,20 @@ export default function StudentCard() {
               {busy && <p className="text-sm text-muted-foreground mt-3">Transcribing…</p>}
             </TabsContent>
             <TabsContent value="hand" className="mt-4 space-y-3">
-              <label className="relative flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:bg-muted/50 overflow-hidden">
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:bg-muted/50">
                 {busy ? <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /> : <>
                   <Camera className="w-6 h-6 mb-2 text-muted-foreground" />
                   <span className="text-sm">Take photo</span>
                 </>}
-                <input type="file" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" accept="image/*" capture="environment" disabled={busy} aria-label="Take photo"
+                <input type="file" className="hidden" accept="image/*" capture="environment" disabled={busy}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingCrop(f); e.target.value = ""; }} />
+              </label>
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-lg p-6 cursor-pointer hover:bg-muted/50">
+                {busy ? <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /> : <>
+                  <ImageIcon className="w-6 h-6 mb-2 text-muted-foreground" />
+                  <span className="text-sm">Upload image from device</span>
+                </>}
+                <input type="file" className="hidden" accept="image/*" disabled={busy}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingCrop(f); e.target.value = ""; }} />
               </label>
             </TabsContent>

@@ -57,18 +57,13 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Missing images" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const isContinuation = Boolean(body.continuation);
     const systemPrompt = images.length > 1
       ? "You transcribe handwritten teacher notes verbatim. The user will provide MULTIPLE photos that are CONSECUTIVE PAGES of the SAME comment (a single comment that runs across multiple pages of a bound book). Concatenate the transcription in order, preserving line breaks. Output ONLY the transcribed text — no commentary, no page markers, no headers."
-      : isContinuation
-        ? "You transcribe one continuation page from a longer handwritten teacher comment verbatim. Output ONLY the text visible on this page — do not add connecting words, page markers, headers, summaries, or commentary. Preserve line breaks."
-        : "You transcribe handwritten teacher notes verbatim. Output only the transcribed text — no commentary, no formatting changes beyond preserving line breaks.";
+      : "You transcribe handwritten teacher notes verbatim. Output only the transcribed text — no commentary, no formatting changes beyond preserving line breaks.";
 
     const userContent: any[] = [
       { type: "text", text: images.length > 1
         ? `Transcribe these ${images.length} consecutive pages of one handwritten comment, in order.`
-        : isContinuation
-          ? "Transcribe this continuation page of the same handwritten comment."
         : "Transcribe these handwritten notes." },
       ...images.map((img) => ({ type: "image_url", image_url: { url: `data:${img.mimeType};base64,${img.base64}` } })),
     ];

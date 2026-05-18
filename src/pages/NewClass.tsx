@@ -244,30 +244,28 @@ export default function NewClass() {
                       <Button type="button" variant="secondary" size="sm" onClick={pasteFromClipboard}>
                         <ClipboardPaste className="w-3.5 h-3.5 mr-1.5" />Paste from clipboard
                       </Button>
-                      <label className="relative inline-flex overflow-hidden rounded-md">
+                      <label>
                         <Button type="button" variant="default" size="sm" asChild>
                           <span><Camera className="w-3.5 h-3.5 mr-1.5" />Take photo</span>
                         </Button>
                         <input
                           type="file"
-                          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                          className="hidden"
                           accept="image/*"
                           capture="environment"
                           disabled={busy}
-                          aria-label="Take photo"
                           onChange={(e) => { const f = e.target.files?.[0]; if (f) setPendingCrop(f); e.currentTarget.value = ""; }}
                         />
                       </label>
-                      <label className="relative inline-flex overflow-hidden rounded-md">
+                      <label>
                         <Button type="button" variant="outline" size="sm" asChild>
                           <span><Upload className="w-3.5 h-3.5 mr-1.5" />Upload file</span>
                         </Button>
                         <input
                           type="file"
-                          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                          className="hidden"
                           accept="image/*,.csv,.txt,.tsv"
                           disabled={busy}
-                          aria-label="Upload file"
                           onChange={(e) => {
                             const f = e.target.files?.[0];
                             if (!f) return;
