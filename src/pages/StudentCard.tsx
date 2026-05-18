@@ -146,17 +146,25 @@ export default function StudentCard() {
     }
   };
 
-  const uploadHandwriting = async (file: File) => {
-    if (!student) return;
+  const uploadHandwriting = async (files: File[]) => {
+    if (!student || files.length === 0) return;
     setBusy(true);
     try {
       const { data: u } = await supabase.auth.getUser();
-      const path = `${u.user!.id}/${student.id}/${Date.now()}-${file.name}`;
-      const { error: upErr } = await supabase.storage.from("handwriting").upload(path, file);
-      if (upErr) throw upErr;
-      const base64 = await fileToBase64(file);
+      const stamp = Date.now();
+      const paths: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        const path = `${u.user!.id}/${student.id}/${stamp}-p${i + 1}-${f.name}`;
+        const { error: upErr } = await supabase.storage.from("handwriting").upload(path, f);
+        if (upErr) throw upErr;
+        paths.push(path);
+      }
+      const images = await Promise.all(
+        files.map(async (f) => ({ base64: await fileToBase64(f), mimeType: f.type })),
+      );
       const { data, error } = await supabase.functions.invoke("ocr-handwriting", {
-        body: { imageBase64: base64, mimeType: file.type },
+        body: { images },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -165,11 +173,11 @@ export default function StudentCard() {
         teacher_id: u.user!.id,
         type: "handwriting",
         transcript: data?.text ?? "",
-        media_path: path,
+        media_path: paths[0],
         term: activeTerm,
       });
       if (insErr) throw insErr;
-      toast.success("Note transcribed");
+      toast.success(files.length > 1 ? `${files.length} pages transcribed` : "Note transcribed");
       load();
     } catch (e: any) {
       toast.error(e.message ?? "Failed");
