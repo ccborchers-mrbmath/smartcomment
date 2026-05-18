@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Sparkles, BookOpen, LogOut, Library, Settings, School, Inbox, CreditCard, GraduationCap } from "lucide-react";
+import { Sparkles, BookOpen, LogOut, Library, Settings, School, Inbox, CreditCard, GraduationCap, Globe, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [status, setStatus] = useState<{ sponsored: boolean; daysLeft: number; sub: string } | null>(null);
+  const [isSchoolAdmin, setIsSchoolAdmin] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -32,6 +33,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           sub: data.subscription_status,
         });
       });
+    supabase.from("school_admins").select("school_id").eq("user_id", user.id).then(({ data }) => {
+      setIsSchoolAdmin(!!data?.length);
+    });
   }, [user]);
 
   const signOut = async () => {
@@ -58,10 +62,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <Link to="/requirements"><Settings className="w-4 h-4 mr-1.5" />Requirements</Link>
             </Button>
             <FeedbackDialog />
-            {user?.email?.toLowerCase() === "ccborchers@gmail.com" && (
+            {isSchoolAdmin && (
               <Button variant="ghost" size="sm" asChild>
-                <Link to="/feedback"><Inbox className="w-4 h-4 mr-1.5" />Inbox</Link>
+                <Link to="/school/invoice"><FileText className="w-4 h-4 mr-1.5" />Invoice</Link>
               </Button>
+            )}
+            {user?.email?.toLowerCase() === "ccborchers@gmail.com" && (
+              <>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/admin/domains"><Globe className="w-4 h-4 mr-1.5" />Domains</Link>
+                </Button>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/feedback"><Inbox className="w-4 h-4 mr-1.5" />Inbox</Link>
+                </Button>
+              </>
             )}
             {status && (
               <Link to="/billing" className="shrink-0">
