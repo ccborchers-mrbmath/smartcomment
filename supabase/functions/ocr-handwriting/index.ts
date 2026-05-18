@@ -35,22 +35,22 @@ serve(async (req) => {
     }
     const body = await req.json();
 
-    // New preferred path: storage references → server fetches them.
+    // Preferred path: storage references → temporary signed URLs.
+    // This avoids loading full camera images into Edge Function memory.
     // { bucket: "handwriting", paths: string[] }
-    let images: { base64: string; mimeType: string }[] = [];
+    let images: { url: string }[] = [];
     if (Array.isArray(body.paths) && body.paths.length) {
       const bucket: string = body.bucket ?? "handwriting";
       const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
       for (const p of body.paths as string[]) {
-        const { data: blob, error } = await admin.storage.from(bucket).download(p);
-        if (error || !blob) throw new Error(`Could not load page ${p}: ${error?.message ?? "missing"}`);
-        const buf = new Uint8Array(await blob.arrayBuffer());
-        images.push({ base64: bytesToBase64(buf), mimeType: blob.type || "image/jpeg" });
+        const { data: signed, error } = await admin.storage.from(bucket).createSignedUrl(p, 10 * 60);
+        if (error || !signed?.signedUrl) throw new Error(`Could not prepare page ${p}: ${error?.message ?? "missing"}`);
+        images.push({ url: signed.signedUrl });
       }
     } else if (Array.isArray(body.images) && body.images.length) {
-      images = body.images.map((i: any) => ({ base64: i.base64, mimeType: i.mimeType ?? "image/png" }));
+      images = body.images.map((i: any) => ({ url: `data:${i.mimeType ?? "image/png"};base64,${i.base64}` }));
     } else if (body.imageBase64) {
-      images = [{ base64: body.imageBase64, mimeType: body.mimeType ?? "image/png" }];
+      images = [{ url: `data:${body.mimeType ?? "image/png"};base64,${body.imageBase64}` }];
     }
 
     if (images.length === 0) {
@@ -70,7 +70,7 @@ serve(async (req) => {
         : isContinuation
           ? "Transcribe this continuation page of the same handwritten comment."
         : "Transcribe these handwritten notes." },
-      ...images.map((img) => ({ type: "image_url", image_url: { url: `data:${img.mimeType};base64,${img.base64}` } })),
+      ...images.map((img) => ({ type: "image_url", image_url: { url: img.url } })),
     ];
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
