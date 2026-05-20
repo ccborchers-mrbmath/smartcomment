@@ -135,6 +135,64 @@ export default function ClassMarksheet() {
     setMarks((p) => ({ ...p, [key]: data as Mark }));
   };
 
+  // Parse a token pasted from Excel into a Mark patch. Returns null if cell should be left untouched.
+  const parsePastedToken = (tokenRaw: string): Partial<Mark> | null => {
+    const t = tokenRaw.trim();
+    if (t === "") return { raw_mark: null, status: "graded" }; // blank clears
+    const low = t.toLowerCase();
+    if (["a", "abs", "absent"].includes(low)) return { raw_mark: null, status: "absent" };
+    if (["e", "ex", "exempt"].includes(low)) return { raw_mark: null, status: "exempt" };
+    // Strip % and commas; accept "17/20" form
+    const slash = t.match(/^(-?\d+(?:\.\d+)?)\s*\/\s*\d+/);
+    const cleaned = (slash ? slash[1] : t).replace(/[,%]/g, "").trim();
+    const n = Number(cleaned);
+    if (!Number.isFinite(n)) return null;
+    return { raw_mark: n, status: "graded" };
+  };
+
+  const handleColumnPaste = async (aid: string, startStudentId: string, text: string) => {
+    // If single value with no newline/tab, let the normal input handler take it
+    if (!/[\n\t]/.test(text)) return false;
+    const startIdx = sortedStudents.findIndex((s) => s.id === startStudentId);
+    if (startIdx < 0) return false;
+    // Take first column only if user pasted a grid
+    const rows = text.replace(/\r/g, "").split("\n").map((r) => r.split("\t")[0]);
+    // Trim trailing blank row Excel adds
+    while (rows.length && rows[rows.length - 1].trim() === "") rows.pop();
+    if (rows.length === 0) return false;
+    const slice = rows.slice(0, sortedStudents.length - startIdx);
+    // Optimistic update first so the UI feels instant
+    setMarks((prev) => {
+      const next = { ...prev };
+      slice.forEach((tok, i) => {
+        const sid = sortedStudents[startIdx + i].id;
+        const patch = parsePastedToken(tok);
+        if (!patch) return;
+        const existing = next[markKey(aid, sid)];
+        next[markKey(aid, sid)] = {
+          id: existing?.id ?? "",
+          assessment_id: aid,
+          student_id: sid,
+          raw_mark: existing?.raw_mark ?? null,
+          status: existing?.status ?? "graded",
+          ...patch,
+        };
+      });
+      return next;
+    });
+    // Persist sequentially (small N, keeps it simple and order-safe)
+    let written = 0, skipped = 0;
+    for (let i = 0; i < slice.length; i++) {
+      const sid = sortedStudents[startIdx + i].id;
+      const patch = parsePastedToken(slice[i]);
+      if (!patch) { skipped++; continue; }
+      await upsertMark(aid, sid, patch);
+      written++;
+    }
+    toast.success(`Pasted ${written} mark${written === 1 ? "" : "s"}${skipped ? ` · ${skipped} unrecognised` : ""}`);
+    return true;
+  };
+
   const pct = (raw: number | null, max: number) => {
     if (raw === null || raw === undefined || !max) return null;
     return Math.round((raw / max) * 100);
