@@ -292,6 +292,10 @@ export default function ClassMarksheet() {
           <Button onClick={addAssessment}><Plus className="w-4 h-4 mr-1.5" />Add your first assessment</Button>
         </div>
       ) : (
+        <>
+        <p className="text-xs text-muted-foreground mb-2">
+          Tip: copy a column of marks from Excel and paste into any raw-mark cell — the values fill down from that student. Blank clears, <span className="font-medium">A</span>/<span className="font-medium">Abs</span> = absent, <span className="font-medium">E</span>/<span className="font-medium">Ex</span> = exempt.
+        </p>
         <div className="overflow-x-auto border border-border rounded-lg bg-card">
           <table className="border-collapse text-sm">
             <thead>
