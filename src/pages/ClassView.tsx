@@ -30,6 +30,8 @@ export default function ClassView() {
   const [savingReqs, setSavingReqs] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [includeMarks, setIncludeMarks] = useState(false);
+  const [markTerms, setMarkTerms] = useState<string[]>([...TERMS]);
 
   useEffect(() => {
     if (!id) return;
