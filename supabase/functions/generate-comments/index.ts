@@ -164,7 +164,48 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
       const otherOv = { ...ov };
       delete otherOv.gender;
       const ovText = Object.keys(otherOv).length ? `Per-student override: ${JSON.stringify(otherOv)}` : "";
-      return `STUDENT_ID: ${s.id}\nNAME: ${s.name}\nPRONOUNS: ${pronouns}\nNOTES:\n${notes || "(no notes)"}\n${ovText}`;
+
+      let marksBlock = "";
+      if (hasMarksData) {
+        const studentMarks = marksByStudent[s.id] || {};
+        const rows: string[] = [];
+        const pcts: { aid: string; name: string; desc: string; pct: number }[] = [];
+        for (const a of assessmentsList) {
+          const m = studentMarks[a.id];
+          const desc = (a.description || "").trim() || "(no description)";
+          const termLabel = a.term || "?";
+          if (!m || m.status === "graded" && (m.raw_mark === null || m.raw_mark === undefined)) {
+            rows.push(`- "${a.name}" (${termLabel}, ${desc}): not yet marked`);
+            continue;
+          }
+          if (m.status === "absent") {
+            rows.push(`- "${a.name}" (${termLabel}, ${desc}): Absent`);
+            continue;
+          }
+          if (m.status === "exempt") {
+            rows.push(`- "${a.name}" (${termLabel}, ${desc}): Exempt`);
+            continue;
+          }
+          const pct = (Number(m.raw_mark) / Number(a.max_marks)) * 100;
+          rows.push(`- "${a.name}" (${termLabel}, ${desc}): ${m.raw_mark}/${a.max_marks}`);
+          pcts.push({ aid: a.id, name: a.name, desc, pct });
+        }
+        if (pcts.length > 0) {
+          const avg = pcts.reduce((s, x) => s + x.pct, 0) / pcts.length;
+          const deltas = pcts.map((p) => {
+            const d = Math.round(p.pct - avg);
+            const sign = d > 0 ? `+${d}` : `${d}`;
+            return `${p.name} ${sign}`;
+          }).join(", ");
+          rows.push(`Student's own average across graded assessments: ${Math.round(avg)}%`);
+          rows.push(`Per-assessment delta vs own average (positive = relatively stronger, negative = relatively weaker): ${deltas}`);
+        } else {
+          rows.push("(no graded assessments for this student in the selected terms)");
+        }
+        marksBlock = `\nASSESSMENT SUMMARY:\n${rows.join("\n")}`;
+      }
+
+      return `STUDENT_ID: ${s.id}\nNAME: ${s.name}\nPRONOUNS: ${pronouns}\nNOTES:\n${notes || "(no notes)"}${marksBlock}\n${ovText}`;
     };
 
     const callBatch = async (batch: any[]): Promise<{ comments: { student_id: string; text: string }[]; error?: { status: number; message: string } }> => {
