@@ -389,24 +389,34 @@ export default function ClassMarksheet() {
                                 </span>
                               ) : (
                                 <Input
-                                  type="number"
+                                  type="text"
+                                  inputMode="decimal"
                                   value={raw ?? ""}
+                                  onPaste={async (e) => {
+                                    const text = e.clipboardData.getData("text");
+                                    if (/[\n\t]/.test(text)) {
+                                      e.preventDefault();
+                                      await handleColumnPaste(a.id, s.id, text);
+                                    }
+                                  }}
                                   onChange={(e) => {
-                                    const v = e.target.value === "" ? null : Number(e.target.value);
+                                    const str = e.target.value;
+                                    const v = str === "" ? null : Number(str);
                                     setMarks((p2) => ({
                                       ...p2,
                                       [markKey(a.id, s.id)]: {
                                         id: m?.id ?? "",
                                         assessment_id: a.id,
                                         student_id: s.id,
-                                        raw_mark: v,
+                                        raw_mark: Number.isFinite(v as number) ? (v as number) : null,
                                         status: "graded",
                                       },
                                     }));
                                   }}
                                   onBlur={(e) => {
-                                    const v = e.target.value === "" ? null : Number(e.target.value);
-                                    upsertMark(a.id, s.id, { raw_mark: v, status: "graded" });
+                                    const str = e.target.value.trim();
+                                    const v = str === "" ? null : Number(str);
+                                    upsertMark(a.id, s.id, { raw_mark: Number.isFinite(v as number) ? (v as number) : null, status: "graded" });
                                   }}
                                   className="h-8 text-center"
                                   placeholder="—"
