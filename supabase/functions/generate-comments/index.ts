@@ -21,10 +21,12 @@ serve(async (req) => {
     const user = userRes?.user;
     if (!user) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const { studentIds, instruction } = await req.json();
+    const { studentIds, instruction, includeMarks, markTerms } = await req.json();
     if (!Array.isArray(studentIds) || studentIds.length === 0) {
       return new Response(JSON.stringify({ error: "No students" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+    const wantMarks = !!includeMarks;
+    const allowedMarkTerms: string[] = Array.isArray(markTerms) ? markTerms : [];
 
     // Load students + verify ownership
     const { data: students } = await supabase
@@ -97,6 +99,28 @@ serve(async (req) => {
     }
     const styleText = (styleSamples ?? []).map((s) => s.text).join("\n\n---\n\n");
 
+    // Optional: load marksheet data for this class
+    let assessmentsList: any[] = [];
+    const marksByStudent: Record<string, Record<string, any>> = {};
+    if (wantMarks) {
+      let aq = supabase.from("assessments").select("id, name, description, term, max_marks, position").eq("class_id", classId).order("position");
+      if (allowedMarkTerms.length > 0) aq = aq.in("term", allowedMarkTerms);
+      const { data: aData } = await aq;
+      assessmentsList = aData ?? [];
+      if (assessmentsList.length > 0) {
+        const aIds = assessmentsList.map((a) => a.id);
+        const { data: mData } = await supabase
+          .from("assessment_marks")
+          .select("assessment_id, student_id, raw_mark, status")
+          .in("assessment_id", aIds)
+          .in("student_id", studentIds);
+        (mData ?? []).forEach((m: any) => {
+          (marksByStudent[m.student_id] ||= {})[m.assessment_id] = m;
+        });
+      }
+    }
+    const hasMarksData = wantMarks && assessmentsList.length > 0;
+
     const systemPrompt = `You write end-of-term school report comments for a teacher.
 
 Voice & style — match the teacher's previous comments below. Be specific, warm, and professional.
@@ -120,7 +144,7 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
 - Typed notes, voice transcripts, OCR text, and any other source MAY contain DIFFERENT spellings of the same name (e.g. roster says "Aleisha" but a voice transcript says "Alicia", or roster says "Siôn" but notes say "Shawn"). These differences are ERRORS in the source — they are NOT alternative valid spellings.
 - You MUST use ONLY the exact spelling from the NAME field every single time you refer to the student. Do not change, shorten, lengthen, anglicise, phoneticise, or "correct" it. Do not mix spellings within a comment.
 - If the notes contain a name spelled differently, treat that as referring to THIS student and silently use the roster spelling instead.
-- Use ONLY the student's first name (the first whitespace-separated word of the NAME field) every time you refer to them. NEVER use the surname, last name, family name, or full name. Do not use initials. Do not use "Mr/Mrs/Ms [Surname]". If the NAME field is "Aleisha Thompson", refer to the student only as "Aleisha" — never "Aleisha Thompson", never "Thompson", never "Miss Thompson".${instruction ? `\n\nADDITIONAL INSTRUCTION: ${instruction}` : ""}`;
+- Use ONLY the student's first name (the first whitespace-separated word of the NAME field) every time you refer to them. NEVER use the surname, last name, family name, or full name. Do not use initials. Do not use "Mr/Mrs/Ms [Surname]". If the NAME field is "Aleisha Thompson", refer to the student only as "Aleisha" — never "Aleisha Thompson", never "Thompson", never "Miss Thompson".${hasMarksData ? `\n\nASSESSMENT DATA RULES (HIGHEST PRIORITY when an ASSESSMENT SUMMARY block is present):\n- NEVER state, imply, or hint at a raw mark, percentage, fraction, ranking, position, or "out of" number. Do NOT say "scored", "achieved X%", "got X out of Y", "top of the class", "above average", "below average", "highest mark", "lowest mark", or similar.\n- NEVER compare the student to other students or to a class average. Comparisons are ONLY between this student's own assessments.\n- Use the per-assessment deltas and descriptions to identify relative strengths and growth areas WITHIN the student's own record.\n- Use comparative language only, e.g. "has shown a stronger performance in {topic from description A} than in {topic from description B}", "is finding {topic} more challenging than {other topic}", "progress in {topic} has lifted noticeably since {earlier assessment topic}".\n- NEVER use "done well in…", "done poorly in…", "did badly", "failed", "excelled", or any qualitative judgement word without a comparative anchor inside the student's own record.\n- Refer to assessment content by its DESCRIPTION (the topic/skill assessed), NOT by the assessment NAME (not "Quiz 1", not "Mid-term test").\n- Assessments marked Absent or Exempt must not be commented on.` : ""}${instruction ? `\n\nADDITIONAL INSTRUCTION: ${instruction}` : ""}`;
 
     const buildBlock = (s: any) => {
       const allowedTerms: string[] = (s as any).included_terms ?? ["2026 Term 1","2026 Term 2","2026 Term 3","2026 Term 4"];
@@ -140,7 +164,48 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
       const otherOv = { ...ov };
       delete otherOv.gender;
       const ovText = Object.keys(otherOv).length ? `Per-student override: ${JSON.stringify(otherOv)}` : "";
-      return `STUDENT_ID: ${s.id}\nNAME: ${s.name}\nPRONOUNS: ${pronouns}\nNOTES:\n${notes || "(no notes)"}\n${ovText}`;
+
+      let marksBlock = "";
+      if (hasMarksData) {
+        const studentMarks = marksByStudent[s.id] || {};
+        const rows: string[] = [];
+        const pcts: { aid: string; name: string; desc: string; pct: number }[] = [];
+        for (const a of assessmentsList) {
+          const m = studentMarks[a.id];
+          const desc = (a.description || "").trim() || "(no description)";
+          const termLabel = a.term || "?";
+          if (!m || m.status === "graded" && (m.raw_mark === null || m.raw_mark === undefined)) {
+            rows.push(`- "${a.name}" (${termLabel}, ${desc}): not yet marked`);
+            continue;
+          }
+          if (m.status === "absent") {
+            rows.push(`- "${a.name}" (${termLabel}, ${desc}): Absent`);
+            continue;
+          }
+          if (m.status === "exempt") {
+            rows.push(`- "${a.name}" (${termLabel}, ${desc}): Exempt`);
+            continue;
+          }
+          const pct = (Number(m.raw_mark) / Number(a.max_marks)) * 100;
+          rows.push(`- "${a.name}" (${termLabel}, ${desc}): ${m.raw_mark}/${a.max_marks}`);
+          pcts.push({ aid: a.id, name: a.name, desc, pct });
+        }
+        if (pcts.length > 0) {
+          const avg = pcts.reduce((s, x) => s + x.pct, 0) / pcts.length;
+          const deltas = pcts.map((p) => {
+            const d = Math.round(p.pct - avg);
+            const sign = d > 0 ? `+${d}` : `${d}`;
+            return `${p.name} ${sign}`;
+          }).join(", ");
+          rows.push(`Student's own average across graded assessments: ${Math.round(avg)}%`);
+          rows.push(`Per-assessment delta vs own average (positive = relatively stronger, negative = relatively weaker): ${deltas}`);
+        } else {
+          rows.push("(no graded assessments for this student in the selected terms)");
+        }
+        marksBlock = `\nASSESSMENT SUMMARY:\n${rows.join("\n")}`;
+      }
+
+      return `STUDENT_ID: ${s.id}\nNAME: ${s.name}\nPRONOUNS: ${pronouns}\nNOTES:\n${notes || "(no notes)"}${marksBlock}\n${ovText}`;
     };
 
     const callBatch = async (batch: any[]): Promise<{ comments: { student_id: string; text: string }[]; error?: { status: number; message: string } }> => {

@@ -30,6 +30,8 @@ export default function ClassView() {
   const [savingReqs, setSavingReqs] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [includeMarks, setIncludeMarks] = useState(false);
+  const [markTerms, setMarkTerms] = useState<string[]>([...TERMS]);
 
   useEffect(() => {
     if (!id) return;
@@ -133,7 +135,7 @@ export default function ClassView() {
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-comments", {
-        body: { studentIds: students.map((s) => s.id) },
+        body: { studentIds: students.map((s) => s.id), includeMarks, markTerms: includeMarks ? markTerms : [] },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -221,7 +223,37 @@ export default function ClassView() {
                   </label>
                 );
               })}
-            </div>
+          </div>
+          <div className="rounded-md border border-border bg-card/50 px-3 py-2">
+            <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+              <Checkbox checked={includeMarks} onCheckedChange={(v) => setIncludeMarks(!!v)} />
+              <span className="font-medium">Include marksheet data</span>
+            </label>
+            {includeMarks && (
+              <>
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground mt-2 mb-1.5">Marks from terms:</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  {TERMS.map((t) => {
+                    const checked = markTerms.includes(t);
+                    return (
+                      <label key={t} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) =>
+                            setMarkTerms((p) => (v ? Array.from(new Set([...p, t])) : p.filter((x) => x !== t)))
+                          }
+                        />
+                        <span>{t}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1.5 max-w-[220px] leading-tight">
+                  AI infers strengths and growth from marks but never mentions scores or rankings.
+                </p>
+              </>
+            )}
+          </div>
             <p className="text-[10px] text-muted-foreground mt-1.5 max-w-[220px] leading-tight">Used when generating comments. Doesn't affect which notes are shown.</p>
           </div>
         </div>
