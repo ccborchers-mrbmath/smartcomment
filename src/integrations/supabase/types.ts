@@ -14,6 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
+      assessment_marks: {
+        Row: {
+          assessment_id: string
+          created_at: string
+          id: string
+          raw_mark: number | null
+          status: string
+          student_id: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          assessment_id: string
+          created_at?: string
+          id?: string
+          raw_mark?: number | null
+          status?: string
+          student_id: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          assessment_id?: string
+          created_at?: string
+          id?: string
+          raw_mark?: number | null
+          status?: string
+          student_id?: string
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_marks_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_marks_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessments: {
+        Row: {
+          class_id: string
+          created_at: string
+          description: string
+          id: string
+          max_marks: number
+          name: string
+          position: number
+          teacher_id: string
+          term: string | null
+          updated_at: string
+          weight: number
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          description?: string
+          id?: string
+          max_marks?: number
+          name?: string
+          position?: number
+          teacher_id: string
+          term?: string | null
+          updated_at?: string
+          weight?: number
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          max_marks?: number
+          name?: string
+          position?: number
+          teacher_id?: string
+          term?: string | null
+          updated_at?: string
+          weight?: number
+        }
+        Relationships: []
+      }
       classes: {
         Row: {
           active_term: string | null
@@ -335,8 +425,10 @@ export type Database = {
         Row: {
           class_id: string
           created_at: string
+          first_name: string | null
           id: string
           included_terms: string[]
+          last_name: string | null
           name: string
           overrides: Json
           position: number
@@ -346,8 +438,10 @@ export type Database = {
         Insert: {
           class_id: string
           created_at?: string
+          first_name?: string | null
           id?: string
           included_terms?: string[]
+          last_name?: string | null
           name: string
           overrides?: Json
           position?: number
@@ -357,8 +451,10 @@ export type Database = {
         Update: {
           class_id?: string
           created_at?: string
+          first_name?: string | null
           id?: string
           included_terms?: string[]
+          last_name?: string | null
           name?: string
           overrides?: Json
           position?: number
