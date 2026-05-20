@@ -135,7 +135,7 @@ export default function ClassView() {
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("generate-comments", {
-        body: { studentIds: students.map((s) => s.id) },
+        body: { studentIds: students.map((s) => s.id), includeMarks, markTerms: includeMarks ? markTerms : [] },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
