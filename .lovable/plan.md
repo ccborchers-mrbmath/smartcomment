@@ -1,113 +1,80 @@
-# Marksheet feature — build plan
-
-Scope: investigate and build the marksheet itself. AI integration with generated comments is out of scope for this round.
+# Marksheet → AI comment integration
 
 ## What the teacher gets
 
-From the class page (Students tab), a new **"Marksheet"** button opens `/classes/:id/marksheet`.
-
-The marksheet is a single spreadsheet-style table per class:
-
-- Rows: students, sorted alphabetically with a toggle **By first name ▾ / By surname ▾**
-- Columns per assessment:
-  - Header cell with: assessment **name**, **term** dropdown (2026 Term 1–4), **out of** (max marks), **weight %**, short **description**, delete button
-  - **Raw** mark input per student (number, or "Absent" / "Exempt" tag)
-  - **%** column, auto-calculated, rounded to nearest percent, read-only
-- **Add assessment** button appends a new column
-- **Term total** column per term: weighted average of that term's assessments for each student (skips Absent/Exempt)
-- **Download CSV** button exports the visible sheet
-
-Empty cell = not yet marked. Absent and Exempt are explicit tags chosen from a small menu inside the cell; both exclude the assessment from the student's term total.
-
-## Data model (new tables)
+On the **Review** screen (where comments are generated for a class), add a small panel:
 
 ```text
-assessments
-  id, class_id, teacher_id
-  name, description, term, max_marks (numeric), weight (numeric, default 1)
-  position (int, for column order)
-  created_at, updated_at
+Include marksheet data
+  [✓] Include assessment results when writing comments
 
-assessment_marks
-  id, assessment_id, student_id, teacher_id
-  raw_mark (numeric, nullable)
-  status ('graded' | 'absent' | 'exempt', default 'graded')
-  unique (assessment_id, student_id)
-  created_at, updated_at
+  Terms to draw from:
+   [✓] 2026 Term 1   [✓] 2026 Term 2
+   [ ] 2026 Term 3   [ ] 2026 Term 4
 ```
 
-RLS: `teacher_id = auth.uid()` for both, mirroring the existing `classes` / `students` pattern. Indexes on `class_id`, `assessment_id`, `student_id`.
+- Defaults: checkbox **off**, all four terms ticked.
+- Term checkboxes only appear when the include checkbox is on.
+- The toggle and term selection are session-only (not persisted) — same lightweight pattern as the existing "instruction" field.
+- Sent as `includeMarks: boolean` and `markTerms: string[]` in the existing `generate-comments` invoke body.
 
-Percentage is **not** stored — computed in the UI as `round(raw / max * 100)`.
+## What the AI receives (per student)
 
-## Student name change
-
-`students.name` is currently a single field. Add:
-
-- `students.first_name text`
-- `students.last_name text`
-
-Migration backfill: split existing `name` on the **last space** — everything before = first_name, last word = last_name (single-word names get empty last_name). Keep `name` column as the canonical display (continue writing `first_name + ' ' + last_name` into it on edit) so the rest of the app (ClassView, StudentCard, generate-comments, exports) keeps working unchanged.
-
-Update the student edit row in `ClassView.tsx` to show two inputs side-by-side instead of one.
-
-## UI structure
-
-New file `src/pages/ClassMarksheet.tsx`, routed in `App.tsx` as `/classes/:id/marksheet`.
-
-Layout:
+When `includeMarks` is true, the edge function loads `assessments` + `assessment_marks` for the class, filtered to `markTerms`, and appends a new block under each student's existing NOTES:
 
 ```text
-[← Back to class]   Marksheet — {className}
-Sort: (•) First name  ( ) Surname              [+ Add assessment]  [Download CSV]
-
-┌──────────────┬─────────────────────┬─────────────────────┬───────────────┐
-│ Student      │ Quiz 1   T1  /20 w1 │ Essay   T1 /50 w2  │ Term 1 total  │
-│              │ "fractions"   [🗑]   │ "narrative"  [🗑]   │ (weighted %)  │
-├──────────────┼──────┬──────────────┼──────┬──────────────┼───────────────┤
-│ Abel, Sam    │  17  │  85%         │  42  │  84%         │  84%          │
-│ Brown, Lee   │ Abs  │   —          │  38  │  76%         │  76%          │
-└──────────────┴──────┴──────────────┴──────┴──────────────┴───────────────┘
+ASSESSMENT SUMMARY:
+- "Fractions quiz" (T1, fractions and equivalent forms): 17/20
+- "Narrative essay" (T1, descriptive writing on a chosen memory): 42/50
+- "Mid-term test" (T2, full term 1 content): 31/50
+- "Speech" (T2, two-minute prepared talk): Absent
+Student's own average across listed assessments: 78%
+Per-assessment delta vs own average: Fractions quiz +7, Narrative essay +6, Mid-term test −16
 ```
 
-- Sticky first column (student name) and sticky header row for horizontal scroll on phones.
-- Each header field saves on blur / change with optimistic updates (same pattern as `ClassView`).
-- Each mark cell saves on blur; small spinner / check indicator. Debounced.
-- Cell menu (⋯ or right-click on mobile: long-press) for Absent / Exempt / Clear.
-- Empty state when no assessments yet: a single "Add your first assessment" CTA.
+- Absent / Exempt rows are listed as tags and excluded from the average and deltas.
+- Deltas are computed in the edge function, not by the model — the model is bad at arithmetic and we want it to focus on language.
+- Assessment **description** is included in parentheses so the AI can talk about *what was being assessed*, not just the score.
 
-## Term total formula
+## Phrasing rules (added to system prompt)
 
-For each student and each term `T`:
+A new dedicated block, high in the prompt, just below the naming rule:
 
 ```text
-total% = round( Σ ( (raw_i / max_i) * weight_i )  /  Σ weight_i  * 100 )
-        for assessments i in term T where status = 'graded' and raw_i is not null
+ASSESSMENT DATA RULES (HIGHEST PRIORITY when ASSESSMENT SUMMARY is present):
+- NEVER state, imply, or hint at a raw mark, percentage, fraction, ranking, position, or "out of" number. Do not say "scored", "achieved X%", "got X out of Y", "top of the class", "above average", "below average", or similar.
+- NEVER compare the student to other students. Comparisons are ONLY between this student's own assessments.
+- Use the per-assessment deltas and descriptions to identify relative strengths and growth areas WITHIN the student's own record.
+- Use comparative language only, e.g. "has shown a stronger performance in {topic from description A} than in {topic from description B}", "is finding {topic} more challenging than {other topic}", "progress in {topic} has lifted noticeably since {earlier assessment topic}".
+- NEVER use "done well in…", "done poorly in…", "did badly", "failed", "excelled", or any qualitative judgement word without a comparative anchor.
+- Refer to assessment content by its DESCRIPTION (e.g. "descriptive writing", "fractions"), NOT by its assessment name (e.g. not "Quiz 1", not "Mid-term test").
+- Absent / Exempt assessments must not be commented on.
 ```
 
-Absent / exempt / blank rows are excluded from both numerator and denominator. If a student has no graded marks in the term, total shows `—`.
+## Technical detail
 
-## CSV export
+**Frontend — `src/pages/ReviewExport.tsx`**
+- Add state `includeMarks: boolean`, `markTerms: string[]` (init to all four 2026 terms).
+- Render the panel above the existing instruction textarea.
+- Pass `{ includeMarks, markTerms }` in the `supabase.functions.invoke("generate-comments", ...)` body.
 
-Client-side CSV (no edge function). Columns:
+**Edge function — `supabase/functions/generate-comments/index.ts`**
+1. Read `includeMarks`, `markTerms` from request body.
+2. If `includeMarks`, after loading students:
+   - `select * from assessments where class_id = $classId and (markTerms is empty or term = any(markTerms)) order by position`
+   - `select * from assessment_marks where assessment_id in (...) and student_id in (studentIds)`
+   - Index marks by `(student_id, assessment_id)`.
+3. Build per-student `ASSESSMENT SUMMARY` text:
+   - For each assessment in order: `"{name}" ({term}, {description}): {raw}/{max} | Absent | Exempt`.
+   - Compute student's own average % across graded marks only.
+   - Compute `delta = round(pct_i - studentAvg)` for each graded assessment; format as `+7 / −16`.
+   - If no graded marks for a student, append `(no marked assessments)` and skip averages/deltas.
+4. Append this block to the `buildBlock(s)` output after NOTES.
+5. Inject the ASSESSMENT DATA RULES block into `systemPrompt` (only when `includeMarks` is true, to keep the prompt lean otherwise).
 
-```text
-Surname, First name, {Assessment 1 name} (/max, weight, term), {Assessment 1 %}, ..., Term 1 total %, Term 2 total %, ...
-```
+**No schema changes.** Marksheet tables already exist with correct RLS; the edge function uses the user-scoped supabase client so existing RLS handles authorisation.
 
-Absent → "Absent", Exempt → "Exempt", blank → empty. Filename: `{class name} marksheet.csv`.
-
-## Files to touch
-
-- new `src/pages/ClassMarksheet.tsx`
-- new migration: create `assessments`, `assessment_marks`, RLS, indexes; add `first_name` / `last_name` to `students` and backfill
-- `src/App.tsx` — register route
-- `src/pages/ClassView.tsx` — add "Marksheet" button next to "Review comments"; swap single name input for first/last inputs in the student edit row
-- `src/pages/NewClass.tsx` — capture first/last when adding students (small tweak; keep current single-line as well for paste-in lists, splitting on last space)
-
-## Out of scope (next round)
-
-- Letting the AI comment generator read marksheet data
-- Per-class colour banding by score
-- Importing marks from CSV
-- Class average / distribution rows
+**Out of scope (next round)**
+- Per-class average / peer context
+- Showing the assembled marksheet snippet back to the teacher before generation
+- Reading marksheet data into the spellcheck/rewrite flows
