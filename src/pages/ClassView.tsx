@@ -193,7 +193,10 @@ export default function ClassView() {
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap justify-end">
+            <Button variant="outline" asChild>
+              <Link to={`/classes/${klass.id}/marksheet`}>Marksheet</Link>
+            </Button>
             <Button variant="outline" asChild>
               <Link to={`/classes/${klass.id}/review`}>Review comments <ArrowRight className="w-4 h-4 ml-1.5" /></Link>
             </Button>
