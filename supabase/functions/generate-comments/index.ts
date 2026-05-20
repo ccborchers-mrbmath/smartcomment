@@ -99,6 +99,28 @@ serve(async (req) => {
     }
     const styleText = (styleSamples ?? []).map((s) => s.text).join("\n\n---\n\n");
 
+    // Optional: load marksheet data for this class
+    let assessmentsList: any[] = [];
+    const marksByStudent: Record<string, Record<string, any>> = {};
+    if (wantMarks) {
+      let aq = supabase.from("assessments").select("id, name, description, term, max_marks, position").eq("class_id", classId).order("position");
+      if (allowedMarkTerms.length > 0) aq = aq.in("term", allowedMarkTerms);
+      const { data: aData } = await aq;
+      assessmentsList = aData ?? [];
+      if (assessmentsList.length > 0) {
+        const aIds = assessmentsList.map((a) => a.id);
+        const { data: mData } = await supabase
+          .from("assessment_marks")
+          .select("assessment_id, student_id, raw_mark, status")
+          .in("assessment_id", aIds)
+          .in("student_id", studentIds);
+        (mData ?? []).forEach((m: any) => {
+          (marksByStudent[m.student_id] ||= {})[m.assessment_id] = m;
+        });
+      }
+    }
+    const hasMarksData = wantMarks && assessmentsList.length > 0;
+
     const systemPrompt = `You write end-of-term school report comments for a teacher.
 
 Voice & style — match the teacher's previous comments below. Be specific, warm, and professional.
