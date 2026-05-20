@@ -135,6 +135,64 @@ export default function ClassMarksheet() {
     setMarks((p) => ({ ...p, [key]: data as Mark }));
   };
 
+  // Parse a token pasted from Excel into a Mark patch. Returns null if cell should be left untouched.
+  const parsePastedToken = (tokenRaw: string): Partial<Mark> | null => {
+    const t = tokenRaw.trim();
+    if (t === "") return { raw_mark: null, status: "graded" }; // blank clears
+    const low = t.toLowerCase();
+    if (["a", "abs", "absent"].includes(low)) return { raw_mark: null, status: "absent" };
+    if (["e", "ex", "exempt"].includes(low)) return { raw_mark: null, status: "exempt" };
+    // Strip % and commas; accept "17/20" form
+    const slash = t.match(/^(-?\d+(?:\.\d+)?)\s*\/\s*\d+/);
+    const cleaned = (slash ? slash[1] : t).replace(/[,%]/g, "").trim();
+    const n = Number(cleaned);
+    if (!Number.isFinite(n)) return null;
+    return { raw_mark: n, status: "graded" };
+  };
+
+  const handleColumnPaste = async (aid: string, startStudentId: string, text: string) => {
+    // If single value with no newline/tab, let the normal input handler take it
+    if (!/[\n\t]/.test(text)) return false;
+    const startIdx = sortedStudents.findIndex((s) => s.id === startStudentId);
+    if (startIdx < 0) return false;
+    // Take first column only if user pasted a grid
+    const rows = text.replace(/\r/g, "").split("\n").map((r) => r.split("\t")[0]);
+    // Trim trailing blank row Excel adds
+    while (rows.length && rows[rows.length - 1].trim() === "") rows.pop();
+    if (rows.length === 0) return false;
+    const slice = rows.slice(0, sortedStudents.length - startIdx);
+    // Optimistic update first so the UI feels instant
+    setMarks((prev) => {
+      const next = { ...prev };
+      slice.forEach((tok, i) => {
+        const sid = sortedStudents[startIdx + i].id;
+        const patch = parsePastedToken(tok);
+        if (!patch) return;
+        const existing = next[markKey(aid, sid)];
+        next[markKey(aid, sid)] = {
+          id: existing?.id ?? "",
+          assessment_id: aid,
+          student_id: sid,
+          raw_mark: existing?.raw_mark ?? null,
+          status: existing?.status ?? "graded",
+          ...patch,
+        };
+      });
+      return next;
+    });
+    // Persist sequentially (small N, keeps it simple and order-safe)
+    let written = 0, skipped = 0;
+    for (let i = 0; i < slice.length; i++) {
+      const sid = sortedStudents[startIdx + i].id;
+      const patch = parsePastedToken(slice[i]);
+      if (!patch) { skipped++; continue; }
+      await upsertMark(aid, sid, patch);
+      written++;
+    }
+    toast.success(`Pasted ${written} mark${written === 1 ? "" : "s"}${skipped ? ` · ${skipped} unrecognised` : ""}`);
+    return true;
+  };
+
   const pct = (raw: number | null, max: number) => {
     if (raw === null || raw === undefined || !max) return null;
     return Math.round((raw / max) * 100);
@@ -234,6 +292,10 @@ export default function ClassMarksheet() {
           <Button onClick={addAssessment}><Plus className="w-4 h-4 mr-1.5" />Add your first assessment</Button>
         </div>
       ) : (
+        <>
+        <p className="text-xs text-muted-foreground mb-2">
+          Tip: copy a column of marks from Excel and paste into any raw-mark cell — the values fill down from that student. Blank clears, <span className="font-medium">A</span>/<span className="font-medium">Abs</span> = absent, <span className="font-medium">E</span>/<span className="font-medium">Ex</span> = exempt.
+        </p>
         <div className="overflow-x-auto border border-border rounded-lg bg-card">
           <table className="border-collapse text-sm">
             <thead>
@@ -331,24 +393,34 @@ export default function ClassMarksheet() {
                                 </span>
                               ) : (
                                 <Input
-                                  type="number"
+                                  type="text"
+                                  inputMode="decimal"
                                   value={raw ?? ""}
+                                  onPaste={async (e) => {
+                                    const text = e.clipboardData.getData("text");
+                                    if (/[\n\t]/.test(text)) {
+                                      e.preventDefault();
+                                      await handleColumnPaste(a.id, s.id, text);
+                                    }
+                                  }}
                                   onChange={(e) => {
-                                    const v = e.target.value === "" ? null : Number(e.target.value);
+                                    const str = e.target.value;
+                                    const v = str === "" ? null : Number(str);
                                     setMarks((p2) => ({
                                       ...p2,
                                       [markKey(a.id, s.id)]: {
                                         id: m?.id ?? "",
                                         assessment_id: a.id,
                                         student_id: s.id,
-                                        raw_mark: v,
+                                        raw_mark: Number.isFinite(v as number) ? (v as number) : null,
                                         status: "graded",
                                       },
                                     }));
                                   }}
                                   onBlur={(e) => {
-                                    const v = e.target.value === "" ? null : Number(e.target.value);
-                                    upsertMark(a.id, s.id, { raw_mark: v, status: "graded" });
+                                    const str = e.target.value.trim();
+                                    const v = str === "" ? null : Number(str);
+                                    upsertMark(a.id, s.id, { raw_mark: Number.isFinite(v as number) ? (v as number) : null, status: "graded" });
                                   }}
                                   className="h-8 text-center"
                                   placeholder="—"
@@ -388,6 +460,7 @@ export default function ClassMarksheet() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </AppShell>
   );
