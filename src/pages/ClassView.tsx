@@ -193,7 +193,6 @@ export default function ClassView() {
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <div className="flex gap-2">
           <div className="flex gap-2 flex-wrap justify-end">
             <Button variant="outline" asChild>
               <Link to={`/classes/${klass.id}/marksheet`}>Marksheet</Link>
