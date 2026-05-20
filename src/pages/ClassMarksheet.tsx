@@ -322,7 +322,7 @@ export default function ClassMarksheet() {
                       const raw = m?.raw_mark;
                       const p = (m && m.status === "graded") ? pct(raw ?? null, Number(a.max_marks)) : null;
                       return (
-                        <>
+                        <Fragment key={a.id}>
                           <td key={`${a.id}-raw`} className="border-b border-border p-1 w-[110px]">
                             <div className="flex items-center gap-1">
                               {isAbsent || isExempt ? (
@@ -371,7 +371,7 @@ export default function ClassMarksheet() {
                           <td key={`${a.id}-pct`} className="border-b border-r border-border p-2 text-center text-muted-foreground w-[60px]">
                             {p === null ? "—" : `${p}%`}
                           </td>
-                        </>
+                        </Fragment>
                       );
                     })}
                     {termsUsed.map((t) => {
