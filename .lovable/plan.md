@@ -1,97 +1,113 @@
-## Goal
+# Marksheet feature — build plan
 
-Make every AI action attributable to a user **and** a domain, so that at month-end you can produce an accurate invoice for any sponsoring school (e.g. "stmarys.edu used 12,430 credits across 18 teachers in May — $X").
+Scope: investigate and build the marksheet itself. AI integration with generated comments is out of scope for this round.
 
-This slots in front of the Stripe/credits work: the ledger is the foundation both for credit-burning *and* for school invoicing.
+## What the teacher gets
 
-## What gets built
+From the class page (Students tab), a new **"Marksheet"** button opens `/classes/:id/marksheet`.
 
-### 1. Usage ledger table
+The marksheet is a single spreadsheet-style table per class:
 
-New table `usage_events`:
-- `id`, `user_id`, `created_at`
-- `function_name` (e.g. `generate-comments`, `transcribe-audio`)
-- `units` (int — tokens, seconds of audio, comments generated, etc.)
-- `credits_used` (int — what we'd charge a paying user)
-- `cost_usd_estimate` (numeric — our actual cost, from the AI gateway)
-- `attributed_domain` (text — snapshot at time of event; see rule below)
-- `school_id` (uuid, nullable — snapshot of which school, if sponsored)
-- `metadata` (jsonb — model used, request id, etc.)
+- Rows: students, sorted alphabetically with a toggle **By first name ▾ / By surname ▾**
+- Columns per assessment:
+  - Header cell with: assessment **name**, **term** dropdown (2026 Term 1–4), **out of** (max marks), **weight %**, short **description**, delete button
+  - **Raw** mark input per student (number, or "Absent" / "Exempt" tag)
+  - **%** column, auto-calculated, rounded to nearest percent, read-only
+- **Add assessment** button appends a new column
+- **Term total** column per term: weighted average of that term's assessments for each student (skips Absent/Exempt)
+- **Download CSV** button exports the visible sheet
 
-RLS: user can read own rows; school admins can read rows where `school_id` matches their school; super-admin reads all.
+Empty cell = not yet marked. Absent and Exempt are explicit tags chosen from a small menu inside the cell; both exclude the assessment from the student's term total.
 
-**Domain attribution rule** (computed once, stored on the row, never recalculated):
-- If `profiles.school_sponsored = true` → use `profiles.school_email` domain + `school_id`
-- Else → use login email domain from `auth.users.email`
+## Data model (new tables)
 
-Storing it on the row matters: if a teacher later leaves a school, historical invoices stay correct.
+```text
+assessments
+  id, class_id, teacher_id
+  name, description, term, max_marks (numeric), weight (numeric, default 1)
+  position (int, for column order)
+  created_at, updated_at
 
-### 2. Wrap every AI edge function
+assessment_marks
+  id, assessment_id, student_id, teacher_id
+  raw_mark (numeric, nullable)
+  status ('graded' | 'absent' | 'exempt', default 'graded')
+  unique (assessment_id, student_id)
+  created_at, updated_at
+```
 
-A small shared helper `logUsage({ user, function_name, units, credits, cost_usd, metadata })` that:
-- Looks up the user's current attribution (sponsored school vs personal domain)
-- Inserts one `usage_events` row
-- (Later) decrements `profiles.credits_balance` if non-sponsored
+RLS: `teacher_id = auth.uid()` for both, mirroring the existing `classes` / `students` pattern. Indexes on `class_id`, `assessment_id`, `student_id`.
 
-Wired into: `generate-comments`, `rewrite-selection`, `transcribe-audio`, `ocr-handwriting`, `extract-policy`, `extract-roster`, `spellcheck-comment`.
+Percentage is **not** stored — computed in the UI as `round(raw / max * 100)`.
 
-Cost numbers come from a small in-code price table per model (e.g. Gemini 2.5 Pro input/output per 1M tokens). We log the *estimated* cost — close enough for invoicing and matches what the Lovable AI gateway actually charges.
+## Student name change
 
-### 3. Rollup views
+`students.name` is currently a single field. Add:
 
-Two SQL views for fast reporting:
-- `usage_by_domain_daily` — domain × day × sums of credits/cost/events
-- `usage_by_school_monthly` — school_id × month × sums + user count
+- `students.first_name text`
+- `students.last_name text`
 
-### 4. School admin invoice page
+Migration backfill: split existing `name` on the **last space** — everything before = first_name, last word = last_name (single-word names get empty last_name). Keep `name` column as the canonical display (continue writing `first_name + ' ' + last_name` into it on edit) so the rest of the app (ClassView, StudentCard, generate-comments, exports) keeps working unchanged.
 
-New `/school/invoice` route (visible to users who are a `school_admin`):
-- Month selector (default: previous month)
-- Header: school name, period, total cost
-- Table: each sponsored teacher in the school with rows used, credits, cost
-- Breakdown by AI feature (comments generated, minutes transcribed, etc.)
-- "Download PDF" and "Download CSV" buttons
-- Super-admin (you) sees the same page but with a school picker
+Update the student edit row in `ClassView.tsx` to show two inputs side-by-side instead of one.
 
-### 5. Super-admin overview (your view)
+## UI structure
 
-Extend whatever admin surface you use today with a "Domains" tab:
-- All domains sorted by cost this month
-- Click a domain → see the per-user breakdown
-- Filter sponsored vs paying
-- Export CSV
+New file `src/pages/ClassMarksheet.tsx`, routed in `App.tsx` as `/classes/:id/marksheet`.
 
-## Why fold it in *now*, before Stripe
+Layout:
 
-The ledger is needed either way — credit-burning reads from it, invoicing reads from it. Building it first means:
-- Sponsored-school invoicing works from day one (your immediate need for the partner school)
-- When Stripe arrives, credits just become "ledger rows where domain isn't sponsored, sum credits, reconcile to balance"
-- No retroactive backfill of usage data
+```text
+[← Back to class]   Marksheet — {className}
+Sort: (•) First name  ( ) Surname              [+ Add assessment]  [Download CSV]
 
-## What this plan does NOT include (still next pass)
+┌──────────────┬─────────────────────┬─────────────────────┬───────────────┐
+│ Student      │ Quiz 1   T1  /20 w1 │ Essay   T1 /50 w2  │ Term 1 total  │
+│              │ "fractions"   [🗑]   │ "narrative"  [🗑]   │ (weighted %)  │
+├──────────────┼──────┬──────────────┼──────┬──────────────┼───────────────┤
+│ Abel, Sam    │  17  │  85%         │  42  │  84%         │  84%          │
+│ Brown, Lee   │ Abs  │   —          │  38  │  76%         │  76%          │
+└──────────────┴──────┴──────────────┴──────┴──────────────┴───────────────┘
+```
 
-- Stripe integration itself (subscriptions, checkout, webhooks)
-- Credit pricing decisions (how many credits per comment, $/credit, monthly grant size)
-- Hard gating of AI features when out of credits / out of trial
-- Automated monthly email of invoice to school admins (manual download first; auto-email can come later)
+- Sticky first column (student name) and sticky header row for horizontal scroll on phones.
+- Each header field saves on blur / change with optimistic updates (same pattern as `ClassView`).
+- Each mark cell saves on blur; small spinner / check indicator. Debounced.
+- Cell menu (⋯ or right-click on mobile: long-press) for Absent / Exempt / Clear.
+- Empty state when no assessments yet: a single "Add your first assessment" CTA.
 
-## Technical details
+## Term total formula
 
-- `cost_usd_estimate` uses a per-model price map kept in a shared file in `supabase/functions/_shared/pricing.ts`. Update when Lovable AI gateway prices change.
-- `units` is feature-specific: tokens for text models, seconds for audio, page count for OCR. Stored raw so we can re-derive anything later.
-- Attribution is snapshotted at insert time using a SQL function `attribute_usage(_uid)` returning `(domain text, school_id uuid)` — single source of truth.
-- PDF generation: client-side via `@react-pdf/renderer` or simple print stylesheet — no new edge function needed for v1.
-- The `usage_events` table will get large; partition by month or add a `created_at` BRIN index from the start.
-- Realtime not needed — invoice page can refetch on month change.
+For each student and each term `T`:
 
-## Order of work in the next pass
+```text
+total% = round( Σ ( (raw_i / max_i) * weight_i )  /  Σ weight_i  * 100 )
+        for assessments i in term T where status = 'graded' and raw_i is not null
+```
 
-1. `usage_events` table + RLS + attribution function
-2. Shared `logUsage` helper + price map
-3. Wire into all 7 AI edge functions
-4. Rollup views
-5. `/school/invoice` page + CSV/PDF export
-6. Super-admin Domains tab
-7. *Then* Stripe + credit-burn gating (separate plan)
+Absent / exempt / blank rows are excluded from both numerator and denominator. If a student has no graded marks in the term, total shows `—`.
 
-Approve and I'll build steps 1–6 in this pass.
+## CSV export
+
+Client-side CSV (no edge function). Columns:
+
+```text
+Surname, First name, {Assessment 1 name} (/max, weight, term), {Assessment 1 %}, ..., Term 1 total %, Term 2 total %, ...
+```
+
+Absent → "Absent", Exempt → "Exempt", blank → empty. Filename: `{class name} marksheet.csv`.
+
+## Files to touch
+
+- new `src/pages/ClassMarksheet.tsx`
+- new migration: create `assessments`, `assessment_marks`, RLS, indexes; add `first_name` / `last_name` to `students` and backfill
+- `src/App.tsx` — register route
+- `src/pages/ClassView.tsx` — add "Marksheet" button next to "Review comments"; swap single name input for first/last inputs in the student edit row
+- `src/pages/NewClass.tsx` — capture first/last when adding students (small tweak; keep current single-line as well for paste-in lists, splitting on last space)
+
+## Out of scope (next round)
+
+- Letting the AI comment generator read marksheet data
+- Per-class colour banding by score
+- Importing marks from CSV
+- Class average / distribution rows
