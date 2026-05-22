@@ -326,10 +326,16 @@ export default function StudentCard() {
       })()}
       <div className="flex items-end justify-between mb-8 flex-wrap gap-4">
         <h1 className="font-display text-4xl">{student.name}</h1>
-        <Button onClick={generate} disabled={generating}>
-          {generating ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
-          Generate comment
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" onClick={generateReport} disabled={reportLoading}>
+            {reportLoading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <FileSearch className="w-4 h-4 mr-1.5" />}
+            Comprehensive report
+          </Button>
+          <Button onClick={generate} disabled={generating}>
+            {generating ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
+            Generate comment
+          </Button>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
