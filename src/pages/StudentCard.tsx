@@ -313,7 +313,8 @@ export default function StudentCard() {
   em { font-style: italic; color: #555; }
   code { font-family: Consolas, monospace; background: #f3f3f3; padding: 1pt 3pt; }
 </style></head><body>${body}</body></html>`;
-    const { default: HTMLtoDOCX } = await import("@turbodocx/html-to-docx");
+    const mod: any = await import("@turbodocx/html-to-docx");
+    const HTMLtoDOCX: any = mod.default?.default ?? mod.default ?? mod;
     const blob = (await HTMLtoDOCX(html, undefined, { table: { row: { cantSplit: true } } })) as Blob;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
