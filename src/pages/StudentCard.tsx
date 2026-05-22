@@ -250,6 +250,56 @@ export default function StudentCard() {
     }
   };
 
+  const generateReport = async () => {
+    if (!student) return;
+    setReportOpen(true);
+    setReportText("");
+    setInterventionText("");
+    setReportLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("student-report", {
+        body: { studentId: student.id, mode: "synthesis" },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setReportText(data?.text ?? "");
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to generate report");
+      setReportOpen(false);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const generateInterventions = async () => {
+    if (!student || !reportText) return;
+    setInterventionLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("student-report", {
+        body: { studentId: student.id, mode: "interventions", synthesis: reportText },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setInterventionText(data?.text ?? "");
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to generate analysis");
+    } finally {
+      setInterventionLoading(false);
+    }
+  };
+
+  const downloadReport = () => {
+    if (!student) return;
+    const combined = interventionText ? `${reportText}\n\n---\n\n${interventionText}` : reportText;
+    const blob = new Blob([combined], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${student.name.replace(/\s+/g, "_")}_report.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (!student) return <AppShell><p className="text-muted-foreground">Loading…</p></AppShell>;
 
   return (
