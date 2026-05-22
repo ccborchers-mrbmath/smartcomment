@@ -14,8 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { marked } from "marked";
-// @ts-ignore - no types
-import htmlDocx from "html-docx-js/dist/html-docx";
+import HTMLtoDOCX from "@turbodocx/html-to-docx";
 
 type Student = { id: string; name: string; class_id: string; overrides: any };
 type Input = {
@@ -315,7 +314,7 @@ export default function StudentCard() {
   em { font-style: italic; color: #555; }
   code { font-family: Consolas, monospace; background: #f3f3f3; padding: 1pt 3pt; }
 </style></head><body>${body}</body></html>`;
-    const blob = htmlDocx.asBlob(html);
+    const blob = (await HTMLtoDOCX(html, undefined, { table: { row: { cantSplit: true } } })) as Blob;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
