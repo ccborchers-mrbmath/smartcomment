@@ -13,6 +13,9 @@ import ImageCropDialog from "@/components/ImageCropDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { marked } from "marked";
+// @ts-ignore - no types
+import htmlDocx from "html-docx-js/dist/html-docx";
 
 type Student = { id: string; name: string; class_id: string; overrides: any };
 type Input = {
@@ -294,14 +297,29 @@ export default function StudentCard() {
     }
   };
 
-  const downloadReport = () => {
+  const downloadReport = async () => {
     if (!student) return;
-    const combined = interventionText ? `${reportText}\n\n---\n\n${interventionText}` : reportText;
-    const blob = new Blob([combined], { type: "text/markdown" });
+    const combinedMd = interventionText ? `${reportText}\n\n---\n\n${interventionText}` : reportText;
+    const body = await marked.parse(combinedMd, { gfm: true, breaks: false });
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${student.name} — Comprehensive report</title>
+<style>
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1a1a1a; }
+  h1 { font-size: 22pt; margin: 0 0 12pt; }
+  h2 { font-size: 16pt; margin: 18pt 0 6pt; border-bottom: 1px solid #999; padding-bottom: 2pt; }
+  h3 { font-size: 13pt; margin: 12pt 0 4pt; }
+  p, li { line-height: 1.4; }
+  table { border-collapse: collapse; width: 100%; margin: 8pt 0; }
+  th, td { border: 1px solid #888; padding: 4pt 6pt; vertical-align: top; text-align: left; }
+  th { background: #eeeeee; font-weight: bold; }
+  hr { border: none; border-top: 1px solid #bbb; margin: 16pt 0; }
+  em { font-style: italic; color: #555; }
+  code { font-family: Consolas, monospace; background: #f3f3f3; padding: 1pt 3pt; }
+</style></head><body>${body}</body></html>`;
+    const blob = htmlDocx.asBlob(html);
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${student.name.replace(/\s+/g, "_")}_report.md`;
+    a.download = `${student.name.replace(/\s+/g, "_")}_report.docx`;
     a.click();
     URL.revokeObjectURL(url);
   };
