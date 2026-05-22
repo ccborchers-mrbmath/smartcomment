@@ -298,24 +298,85 @@ export default function StudentCard() {
   const downloadReport = async () => {
     if (!student) return;
     const combinedMd = interventionText ? `${reportText}\n\n---\n\n${interventionText}` : reportText;
-    const body = await marked.parse(combinedMd, { gfm: true, breaks: false });
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${student.name} — Comprehensive report</title>
-<style>
-  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1a1a1a; }
-  h1 { font-size: 22pt; margin: 0 0 12pt; }
-  h2 { font-size: 16pt; margin: 18pt 0 6pt; border-bottom: 1px solid #999; padding-bottom: 2pt; }
-  h3 { font-size: 13pt; margin: 12pt 0 4pt; }
-  p, li { line-height: 1.4; }
-  table { border-collapse: collapse; width: 100%; margin: 8pt 0; }
-  th, td { border: 1px solid #888; padding: 4pt 6pt; vertical-align: top; text-align: left; }
-  th { background: #eeeeee; font-weight: bold; }
-  hr { border: none; border-top: 1px solid #bbb; margin: 16pt 0; }
-  em { font-style: italic; color: #555; }
-  code { font-family: Consolas, monospace; background: #f3f3f3; padding: 1pt 3pt; }
-</style></head><body>${body}</body></html>`;
-    const mod: any = await import("@turbodocx/html-to-docx");
-    const HTMLtoDOCX: any = mod.default?.default ?? mod.default ?? mod;
-    const blob = (await HTMLtoDOCX(html, undefined, { table: { row: { cantSplit: true } } })) as Blob;
+    const {
+      Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
+      Table, TableRow, TableCell, WidthType, BorderStyle, ShadingType,
+    } = await import("docx");
+
+    const tokens = marked.lexer(combinedMd, { gfm: true });
+
+    const inlineRuns = (text: string): any[] => {
+      // very small inline parser: **bold**, *italic*, `code`
+      const runs: any[] = [];
+      const re = /(\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`)/g;
+      let last = 0; let m: RegExpExecArray | null;
+      while ((m = re.exec(text)) !== null) {
+        if (m.index > last) runs.push(new TextRun(text.slice(last, m.index)));
+        if (m[2]) runs.push(new TextRun({ text: m[2], bold: true }));
+        else if (m[3]) runs.push(new TextRun({ text: m[3], italics: true }));
+        else if (m[4]) runs.push(new TextRun({ text: m[4], font: "Consolas" }));
+        last = m.index + m[0].length;
+      }
+      if (last < text.length) runs.push(new TextRun(text.slice(last)));
+      return runs.length ? runs : [new TextRun(text)];
+    };
+
+    const border = { style: BorderStyle.SINGLE, size: 4, color: "888888" };
+    const cellBorders = { top: border, bottom: border, left: border, right: border };
+
+    const children: any[] = [];
+
+    for (const tok of tokens as any[]) {
+      if (tok.type === "heading") {
+        const level = Math.min(Math.max(tok.depth, 1), 4);
+        const heading = ([HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4])[level - 1];
+        children.push(new Paragraph({ heading, children: inlineRuns(tok.text) }));
+      } else if (tok.type === "paragraph") {
+        children.push(new Paragraph({ children: inlineRuns(tok.text) }));
+      } else if (tok.type === "space") {
+        children.push(new Paragraph({ children: [new TextRun("")] }));
+      } else if (tok.type === "hr") {
+        children.push(new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "BBBBBB", space: 1 } }, children: [new TextRun("")] }));
+      } else if (tok.type === "list") {
+        for (const item of tok.items) {
+          children.push(new Paragraph({
+            bullet: tok.ordered ? undefined : { level: 0 },
+            numbering: tok.ordered ? undefined : undefined,
+            children: [new TextRun(tok.ordered ? `• ${item.text}` : `• ${item.text}`)],
+          }));
+        }
+      } else if (tok.type === "table") {
+        const headerRow = new TableRow({
+          tableHeader: true,
+          children: tok.header.map((h: any) => new TableCell({
+            borders: cellBorders,
+            shading: { fill: "EEEEEE", type: ShadingType.CLEAR, color: "auto" },
+            children: [new Paragraph({ children: inlineRuns(typeof h === "string" ? h : h.text) })],
+          })),
+        });
+        const bodyRows = tok.rows.map((row: any[]) => new TableRow({
+          children: row.map((c: any) => new TableCell({
+            borders: cellBorders,
+            children: [new Paragraph({ children: inlineRuns(typeof c === "string" ? c : c.text) })],
+          })),
+        }));
+        children.push(new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [headerRow, ...bodyRows],
+        }));
+        children.push(new Paragraph({ children: [new TextRun("")] }));
+      } else if (tok.type === "blockquote") {
+        children.push(new Paragraph({ children: inlineRuns(tok.text), indent: { left: 360 } }));
+      }
+    }
+
+    const doc = new Document({
+      styles: {
+        default: { document: { run: { font: "Calibri", size: 22 } } },
+      },
+      sections: [{ children }],
+    });
+    const blob = await Packer.toBlob(doc);
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
