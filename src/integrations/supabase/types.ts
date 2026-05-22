@@ -421,6 +421,39 @@ export type Database = {
           },
         ]
       }
+      student_reports: {
+        Row: {
+          created_at: string
+          id: string
+          interventions: string | null
+          student_id: string
+          synthesis: string
+          teacher_id: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          interventions?: string | null
+          student_id: string
+          synthesis: string
+          teacher_id: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          interventions?: string | null
+          student_id?: string
+          synthesis?: string
+          teacher_id?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       students: {
         Row: {
           class_id: string

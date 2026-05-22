@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, ArrowRight, Mic, Square, Image as ImageIcon, FileText, Paperclip, Loader2, Trash2, Sparkles, Pencil, Check, X, Camera, FileSearch, Download, Lightbulb } from "lucide-react";
+import { ArrowLeft, ArrowRight, Mic, Square, Image as ImageIcon, FileText, Paperclip, Loader2, Trash2, Sparkles, Pencil, Check, X, Camera, FileSearch, Download, Lightbulb, Save, History } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import ImageCropDialog from "@/components/ImageCropDialog";
@@ -54,6 +54,10 @@ export default function StudentCard() {
   const [reportText, setReportText] = useState<string>("");
   const [interventionLoading, setInterventionLoading] = useState(false);
   const [interventionText, setInterventionText] = useState<string>("");
+  const [currentReportId, setCurrentReportId] = useState<string | null>(null);
+  const [savingReport, setSavingReport] = useState(false);
+  const [savedReports, setSavedReports] = useState<{ id: string; title: string | null; created_at: string; updated_at: string }[]>([]);
+  const [savedOpen, setSavedOpen] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -256,6 +260,7 @@ export default function StudentCard() {
     setReportOpen(true);
     setReportText("");
     setInterventionText("");
+    setCurrentReportId(null);
     setReportLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("student-report", {
@@ -301,6 +306,71 @@ export default function StudentCard() {
     URL.revokeObjectURL(url);
   };
 
+  const loadSavedReports = async () => {
+    if (!student) return;
+    const { data, error } = await supabase
+      .from("student_reports")
+      .select("id, title, created_at, updated_at")
+      .eq("student_id", student.id)
+      .order("created_at", { ascending: false });
+    if (error) { toast.error(error.message); return; }
+    setSavedReports(data ?? []);
+  };
+
+  const saveReport = async () => {
+    if (!student || !reportText) return;
+    setSavingReport(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const payload = {
+        student_id: student.id,
+        teacher_id: u.user!.id,
+        synthesis: reportText,
+        interventions: interventionText || null,
+        title: `Report — ${new Date().toLocaleDateString()}`,
+      };
+      if (currentReportId) {
+        const { error } = await supabase.from("student_reports")
+          .update({ synthesis: reportText, interventions: interventionText || null })
+          .eq("id", currentReportId);
+        if (error) throw error;
+        toast.success("Report updated");
+      } else {
+        const { data, error } = await supabase.from("student_reports").insert(payload).select("id").single();
+        if (error) throw error;
+        setCurrentReportId(data.id);
+        toast.success("Report saved");
+      }
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to save");
+    } finally {
+      setSavingReport(false);
+    }
+  };
+
+  const openSavedReport = async (rid: string) => {
+    const { data, error } = await supabase
+      .from("student_reports")
+      .select("id, synthesis, interventions")
+      .eq("id", rid)
+      .maybeSingle();
+    if (error || !data) { toast.error(error?.message ?? "Not found"); return; }
+    setReportText(data.synthesis);
+    setInterventionText(data.interventions ?? "");
+    setCurrentReportId(data.id);
+    setSavedOpen(false);
+    setReportOpen(true);
+  };
+
+  const deleteSavedReport = async (rid: string) => {
+    if (!confirm("Delete this saved report?")) return;
+    const { error } = await supabase.from("student_reports").delete().eq("id", rid);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Deleted");
+    if (currentReportId === rid) setCurrentReportId(null);
+    loadSavedReports();
+  };
+
   if (!student) return <AppShell><p className="text-muted-foreground">Loading…</p></AppShell>;
 
   return (
@@ -328,6 +398,9 @@ export default function StudentCard() {
       <div className="flex items-end justify-between mb-8 flex-wrap gap-4">
         <h1 className="font-display text-4xl">{student.name}</h1>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="ghost" size="sm" onClick={async () => { await loadSavedReports(); setSavedOpen(true); }}>
+            <History className="w-4 h-4 mr-1.5" /> Saved reports
+          </Button>
           <Button variant="outline" onClick={generateReport} disabled={reportLoading}>
             {reportLoading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <FileSearch className="w-4 h-4 mr-1.5" />}
             Comprehensive report
@@ -516,6 +589,10 @@ export default function StudentCard() {
               <Button variant="outline" size="sm" onClick={downloadReport}>
                 <Download className="w-4 h-4 mr-1.5" /> Download
               </Button>
+              <Button variant="outline" size="sm" onClick={saveReport} disabled={savingReport}>
+                {savingReport ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Save className="w-4 h-4 mr-1.5" />}
+                {currentReportId ? "Update saved" : "Save report"}
+              </Button>
               {!interventionText && (
                 <Button size="sm" onClick={generateInterventions} disabled={interventionLoading}>
                   {interventionLoading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Lightbulb className="w-4 h-4 mr-1.5" />}
@@ -523,6 +600,33 @@ export default function StudentCard() {
                 </Button>
               )}
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={savedOpen} onOpenChange={setSavedOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl">Saved reports</DialogTitle>
+          </DialogHeader>
+          {savedReports.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">No saved reports yet.</p>
+          ) : (
+            <ul className="divide-y divide-border max-h-[60vh] overflow-y-auto">
+              {savedReports.map((r) => (
+                <li key={r.id} className="flex items-center justify-between py-3 gap-2">
+                  <button className="text-left flex-1 hover:underline" onClick={() => openSavedReport(r.id)}>
+                    <div className="text-sm font-medium">{r.title ?? "Untitled report"}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Saved {formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}
+                      {r.updated_at !== r.created_at && ` · updated ${formatDistanceToNow(new Date(r.updated_at), { addSuffix: true })}`}
+                    </div>
+                  </button>
+                  <Button variant="ghost" size="icon" onClick={() => deleteSavedReport(r.id)}>
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
           )}
         </DialogContent>
       </Dialog>
