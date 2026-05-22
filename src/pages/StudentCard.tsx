@@ -6,10 +6,12 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, ArrowRight, Mic, Square, Image as ImageIcon, FileText, Paperclip, Loader2, Trash2, Sparkles, Pencil, Check, X, Camera } from "lucide-react";
+import { ArrowLeft, ArrowRight, Mic, Square, Image as ImageIcon, FileText, Paperclip, Loader2, Trash2, Sparkles, Pencil, Check, X, Camera, FileSearch, Download, Lightbulb } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import ImageCropDialog from "@/components/ImageCropDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import ReactMarkdown from "react-markdown";
 
 type Student = { id: string; name: string; class_id: string; overrides: any };
 type Input = {
@@ -46,6 +48,11 @@ export default function StudentCard() {
   const [editText, setEditText] = useState("");
   const [showAllTerms, setShowAllTerms] = useState(false);
   const [pendingCrop, setPendingCrop] = useState<File | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportText, setReportText] = useState<string>("");
+  const [interventionLoading, setInterventionLoading] = useState(false);
+  const [interventionText, setInterventionText] = useState<string>("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -243,6 +250,56 @@ export default function StudentCard() {
     }
   };
 
+  const generateReport = async () => {
+    if (!student) return;
+    setReportOpen(true);
+    setReportText("");
+    setInterventionText("");
+    setReportLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("student-report", {
+        body: { studentId: student.id, mode: "synthesis" },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setReportText(data?.text ?? "");
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to generate report");
+      setReportOpen(false);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const generateInterventions = async () => {
+    if (!student || !reportText) return;
+    setInterventionLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("student-report", {
+        body: { studentId: student.id, mode: "interventions", synthesis: reportText },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setInterventionText(data?.text ?? "");
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to generate analysis");
+    } finally {
+      setInterventionLoading(false);
+    }
+  };
+
+  const downloadReport = () => {
+    if (!student) return;
+    const combined = interventionText ? `${reportText}\n\n---\n\n${interventionText}` : reportText;
+    const blob = new Blob([combined], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${student.name.replace(/\s+/g, "_")}_report.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (!student) return <AppShell><p className="text-muted-foreground">Loading…</p></AppShell>;
 
   return (
@@ -269,10 +326,16 @@ export default function StudentCard() {
       })()}
       <div className="flex items-end justify-between mb-8 flex-wrap gap-4">
         <h1 className="font-display text-4xl">{student.name}</h1>
-        <Button onClick={generate} disabled={generating}>
-          {generating ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
-          Generate comment
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" onClick={generateReport} disabled={reportLoading}>
+            {reportLoading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <FileSearch className="w-4 h-4 mr-1.5" />}
+            Comprehensive report
+          </Button>
+          <Button onClick={generate} disabled={generating}>
+            {generating ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1.5" />}
+            Generate comment
+          </Button>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -420,6 +483,48 @@ export default function StudentCard() {
         onCancel={() => setPendingCrop(null)}
         onConfirm={(files) => { setPendingCrop(null); uploadHandwriting(files); }}
       />
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl">Comprehensive report — {student.name}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto pr-2">
+            {reportLoading && !reportText ? (
+              <div className="flex items-center justify-center py-16 text-muted-foreground">
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Synthesizing all data for this student…
+              </div>
+            ) : (
+              <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-display prose-table:text-sm">
+                <ReactMarkdown>{reportText}</ReactMarkdown>
+                {interventionText && (
+                  <>
+                    <hr />
+                    <ReactMarkdown>{interventionText}</ReactMarkdown>
+                  </>
+                )}
+                {interventionLoading && (
+                  <div className="flex items-center text-muted-foreground mt-4">
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating support & intervention analysis…
+                  </div>
+                )}
+              </article>
+            )}
+          </div>
+          {reportText && !reportLoading && (
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border flex-wrap">
+              <Button variant="outline" size="sm" onClick={downloadReport}>
+                <Download className="w-4 h-4 mr-1.5" /> Download
+              </Button>
+              {!interventionText && (
+                <Button size="sm" onClick={generateInterventions} disabled={interventionLoading}>
+                  {interventionLoading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Lightbulb className="w-4 h-4 mr-1.5" />}
+                  Add support & intervention analysis
+                </Button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
