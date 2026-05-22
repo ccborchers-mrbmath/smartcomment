@@ -398,6 +398,9 @@ export default function StudentCard() {
       <div className="flex items-end justify-between mb-8 flex-wrap gap-4">
         <h1 className="font-display text-4xl">{student.name}</h1>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="ghost" size="sm" onClick={async () => { await loadSavedReports(); setSavedOpen(true); }}>
+            <History className="w-4 h-4 mr-1.5" /> Saved reports
+          </Button>
           <Button variant="outline" onClick={generateReport} disabled={reportLoading}>
             {reportLoading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <FileSearch className="w-4 h-4 mr-1.5" />}
             Comprehensive report
