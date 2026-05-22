@@ -496,11 +496,11 @@ export default function StudentCard() {
               </div>
             ) : (
               <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-display prose-table:text-sm">
-                <ReactMarkdown>{reportText}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{reportText}</ReactMarkdown>
                 {interventionText && (
                   <>
                     <hr />
-                    <ReactMarkdown>{interventionText}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{interventionText}</ReactMarkdown>
                   </>
                 )}
                 {interventionLoading && (
