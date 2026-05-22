@@ -314,7 +314,7 @@ export default function StudentCard() {
   em { font-style: italic; color: #555; }
   code { font-family: Consolas, monospace; background: #f3f3f3; padding: 1pt 3pt; }
 </style></head><body>${body}</body></html>`;
-    const blob = htmlDocx.asBlob(html);
+    const blob = (await HTMLtoDOCX(html, undefined, { table: { row: { cantSplit: true } } })) as Blob;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
