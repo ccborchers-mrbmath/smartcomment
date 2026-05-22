@@ -260,6 +260,7 @@ export default function StudentCard() {
     setReportOpen(true);
     setReportText("");
     setInterventionText("");
+    setCurrentReportId(null);
     setReportLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("student-report", {
