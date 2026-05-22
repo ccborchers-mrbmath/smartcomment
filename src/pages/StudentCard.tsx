@@ -48,6 +48,11 @@ export default function StudentCard() {
   const [editText, setEditText] = useState("");
   const [showAllTerms, setShowAllTerms] = useState(false);
   const [pendingCrop, setPendingCrop] = useState<File | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportText, setReportText] = useState<string>("");
+  const [interventionLoading, setInterventionLoading] = useState(false);
+  const [interventionText, setInterventionText] = useState<string>("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
