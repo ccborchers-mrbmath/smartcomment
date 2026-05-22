@@ -12,6 +12,7 @@ import { formatDistanceToNow } from "date-fns";
 import ImageCropDialog from "@/components/ImageCropDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type Student = { id: string; name: string; class_id: string; overrides: any };
 type Input = {
@@ -495,11 +496,11 @@ export default function StudentCard() {
               </div>
             ) : (
               <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-display prose-table:text-sm">
-                <ReactMarkdown>{reportText}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{reportText}</ReactMarkdown>
                 {interventionText && (
                   <>
                     <hr />
-                    <ReactMarkdown>{interventionText}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{interventionText}</ReactMarkdown>
                   </>
                 )}
                 {interventionLoading && (
