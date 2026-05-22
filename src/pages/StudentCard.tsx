@@ -483,6 +483,48 @@ export default function StudentCard() {
         onCancel={() => setPendingCrop(null)}
         onConfirm={(files) => { setPendingCrop(null); uploadHandwriting(files); }}
       />
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl">Comprehensive report — {student.name}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto pr-2">
+            {reportLoading && !reportText ? (
+              <div className="flex items-center justify-center py-16 text-muted-foreground">
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Synthesizing all data for this student…
+              </div>
+            ) : (
+              <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-display prose-table:text-sm">
+                <ReactMarkdown>{reportText}</ReactMarkdown>
+                {interventionText && (
+                  <>
+                    <hr />
+                    <ReactMarkdown>{interventionText}</ReactMarkdown>
+                  </>
+                )}
+                {interventionLoading && (
+                  <div className="flex items-center text-muted-foreground mt-4">
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating support & intervention analysis…
+                  </div>
+                )}
+              </article>
+            )}
+          </div>
+          {reportText && !reportLoading && (
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border flex-wrap">
+              <Button variant="outline" size="sm" onClick={downloadReport}>
+                <Download className="w-4 h-4 mr-1.5" /> Download
+              </Button>
+              {!interventionText && (
+                <Button size="sm" onClick={generateInterventions} disabled={interventionLoading}>
+                  {interventionLoading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Lightbulb className="w-4 h-4 mr-1.5" />}
+                  Add support & intervention analysis
+                </Button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
