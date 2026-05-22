@@ -306,6 +306,71 @@ export default function StudentCard() {
     URL.revokeObjectURL(url);
   };
 
+  const loadSavedReports = async () => {
+    if (!student) return;
+    const { data, error } = await supabase
+      .from("student_reports")
+      .select("id, title, created_at, updated_at")
+      .eq("student_id", student.id)
+      .order("created_at", { ascending: false });
+    if (error) { toast.error(error.message); return; }
+    setSavedReports(data ?? []);
+  };
+
+  const saveReport = async () => {
+    if (!student || !reportText) return;
+    setSavingReport(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const payload = {
+        student_id: student.id,
+        teacher_id: u.user!.id,
+        synthesis: reportText,
+        interventions: interventionText || null,
+        title: `Report — ${new Date().toLocaleDateString()}`,
+      };
+      if (currentReportId) {
+        const { error } = await supabase.from("student_reports")
+          .update({ synthesis: reportText, interventions: interventionText || null })
+          .eq("id", currentReportId);
+        if (error) throw error;
+        toast.success("Report updated");
+      } else {
+        const { data, error } = await supabase.from("student_reports").insert(payload).select("id").single();
+        if (error) throw error;
+        setCurrentReportId(data.id);
+        toast.success("Report saved");
+      }
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to save");
+    } finally {
+      setSavingReport(false);
+    }
+  };
+
+  const openSavedReport = async (rid: string) => {
+    const { data, error } = await supabase
+      .from("student_reports")
+      .select("id, synthesis, interventions")
+      .eq("id", rid)
+      .maybeSingle();
+    if (error || !data) { toast.error(error?.message ?? "Not found"); return; }
+    setReportText(data.synthesis);
+    setInterventionText(data.interventions ?? "");
+    setCurrentReportId(data.id);
+    setSavedOpen(false);
+    setReportOpen(true);
+  };
+
+  const deleteSavedReport = async (rid: string) => {
+    if (!confirm("Delete this saved report?")) return;
+    const { error } = await supabase.from("student_reports").delete().eq("id", rid);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Deleted");
+    if (currentReportId === rid) setCurrentReportId(null);
+    loadSavedReports();
+  };
+
   if (!student) return <AppShell><p className="text-muted-foreground">Loading…</p></AppShell>;
 
   return (
