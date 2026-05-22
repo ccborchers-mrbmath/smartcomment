@@ -6,10 +6,12 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, ArrowRight, Mic, Square, Image as ImageIcon, FileText, Paperclip, Loader2, Trash2, Sparkles, Pencil, Check, X, Camera } from "lucide-react";
+import { ArrowLeft, ArrowRight, Mic, Square, Image as ImageIcon, FileText, Paperclip, Loader2, Trash2, Sparkles, Pencil, Check, X, Camera, FileSearch, Download, Lightbulb } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import ImageCropDialog from "@/components/ImageCropDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import ReactMarkdown from "react-markdown";
 
 type Student = { id: string; name: string; class_id: string; overrides: any };
 type Input = {
