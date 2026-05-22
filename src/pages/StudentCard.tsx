@@ -14,8 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { marked } from "marked";
-// @ts-ignore - no types
-import htmlDocx from "html-docx-js/dist/html-docx";
+import HTMLtoDOCX from "@turbodocx/html-to-docx";
 
 type Student = { id: string; name: string; class_id: string; overrides: any };
 type Input = {
