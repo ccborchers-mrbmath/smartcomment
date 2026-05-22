@@ -589,6 +589,10 @@ export default function StudentCard() {
               <Button variant="outline" size="sm" onClick={downloadReport}>
                 <Download className="w-4 h-4 mr-1.5" /> Download
               </Button>
+              <Button variant="outline" size="sm" onClick={saveReport} disabled={savingReport}>
+                {savingReport ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Save className="w-4 h-4 mr-1.5" />}
+                {currentReportId ? "Update saved" : "Save report"}
+              </Button>
               {!interventionText && (
                 <Button size="sm" onClick={generateInterventions} disabled={interventionLoading}>
                   {interventionLoading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Lightbulb className="w-4 h-4 mr-1.5" />}
@@ -596,6 +600,33 @@ export default function StudentCard() {
                 </Button>
               )}
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={savedOpen} onOpenChange={setSavedOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl">Saved reports</DialogTitle>
+          </DialogHeader>
+          {savedReports.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">No saved reports yet.</p>
+          ) : (
+            <ul className="divide-y divide-border max-h-[60vh] overflow-y-auto">
+              {savedReports.map((r) => (
+                <li key={r.id} className="flex items-center justify-between py-3 gap-2">
+                  <button className="text-left flex-1 hover:underline" onClick={() => openSavedReport(r.id)}>
+                    <div className="text-sm font-medium">{r.title ?? "Untitled report"}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Saved {formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}
+                      {r.updated_at !== r.created_at && ` · updated ${formatDistanceToNow(new Date(r.updated_at), { addSuffix: true })}`}
+                    </div>
+                  </button>
+                  <Button variant="ghost" size="icon" onClick={() => deleteSavedReport(r.id)}>
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
           )}
         </DialogContent>
       </Dialog>
