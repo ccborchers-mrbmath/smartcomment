@@ -54,6 +54,10 @@ export default function StudentCard() {
   const [reportText, setReportText] = useState<string>("");
   const [interventionLoading, setInterventionLoading] = useState(false);
   const [interventionText, setInterventionText] = useState<string>("");
+  const [currentReportId, setCurrentReportId] = useState<string | null>(null);
+  const [savingReport, setSavingReport] = useState(false);
+  const [savedReports, setSavedReports] = useState<{ id: string; title: string | null; created_at: string; updated_at: string }[]>([]);
+  const [savedOpen, setSavedOpen] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
