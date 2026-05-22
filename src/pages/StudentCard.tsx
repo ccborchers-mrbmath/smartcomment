@@ -13,6 +13,9 @@ import ImageCropDialog from "@/components/ImageCropDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { marked } from "marked";
+// @ts-ignore - no types
+import htmlDocx from "html-docx-js/dist/html-docx";
 
 type Student = { id: string; name: string; class_id: string; overrides: any };
 type Input = {
