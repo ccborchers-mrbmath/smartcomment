@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import FeedbackDialog from "@/components/FeedbackDialog";
+import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 
 function trialDaysLeft(startIso: string): number {
   const end = new Date(startIso).getTime() + 30 * 24 * 60 * 60 * 1000;
@@ -45,6 +46,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <PaymentTestModeBanner />
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Link to="/" className="flex items-center gap-2 shrink-0">

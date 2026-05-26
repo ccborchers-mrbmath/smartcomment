@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { CheckCircle2, GraduationCap, Sparkles } from "lucide-react";
+import { CheckCircle2, GraduationCap, Sparkles, Zap } from "lucide-react";
+import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
 
 type Profile = {
   school_email: string | null;
@@ -19,6 +21,22 @@ type Profile = {
   subscription_status: string;
 };
 
+type CreditTx = {
+  id: string;
+  delta: number;
+  reason: string;
+  pack_key: string | null;
+  amount_usd: number | null;
+  function_name: string | null;
+  created_at: string;
+};
+
+const PACKS = [
+  { key: "starter", priceId: "credits_starter_onetime", name: "Starter", credits: 500, price: "$5", per: "$0.010 / credit" },
+  { key: "standard", priceId: "credits_standard_onetime", name: "Standard", credits: 2000, price: "$18", per: "$0.009 / credit", popular: true },
+  { key: "bulk", priceId: "credits_bulk_onetime", name: "Bulk", credits: 10000, price: "$80", per: "$0.008 / credit" },
+];
+
 function trialDaysLeft(startIso: string): number {
   const end = new Date(startIso).getTime() + 30 * 24 * 60 * 60 * 1000;
   return Math.max(0, Math.ceil((end - Date.now()) / (24 * 60 * 60 * 1000)));
@@ -27,20 +45,54 @@ function trialDaysLeft(startIso: string): number {
 export default function Billing() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [transactions, setTransactions] = useState<CreditTx[]>([]);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const { openCheckout, loading: checkoutLoading } = usePaddleCheckout();
+  const [pendingPack, setPendingPack] = useState<string | null>(null);
 
   const load = async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from("profiles")
-      .select("school_email, school_email_verified_at, school_sponsored, trial_started_at, credits_balance, subscription_status")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (data) setProfile(data as Profile);
+    const [{ data: prof }, { data: txs }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("school_email, school_email_verified_at, school_sponsored, trial_started_at, credits_balance, subscription_status")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("credit_transactions")
+        .select("id, delta, reason, pack_key, amount_usd, function_name, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
+    if (prof) setProfile(prof as Profile);
+    if (txs) setTransactions(txs as CreditTx[]);
   };
 
   useEffect(() => { load(); }, [user]);
+
+  // Handle Paddle return URL
+  useEffect(() => {
+    const purchase = params.get("purchase");
+    if (!purchase) return;
+    if (purchase === "success") {
+      toast.success("Payment received — credits will appear shortly.");
+      // Poll a few times: webhook usually lands within seconds.
+      let tries = 0;
+      const timer = setInterval(async () => {
+        tries += 1;
+        await load();
+        if (tries >= 6) clearInterval(timer);
+      }, 2000);
+    } else if (purchase === "cancelled") {
+      toast("Purchase cancelled.");
+    }
+    params.delete("purchase");
+    setParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sendVerification = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +115,23 @@ export default function Billing() {
       toast.error(err.message ?? "Could not send verification");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const buyPack = async (pack: typeof PACKS[number]) => {
+    if (!user) return;
+    setPendingPack(pack.key);
+    try {
+      await openCheckout({
+        priceId: pack.priceId,
+        customerEmail: user.email,
+        customData: { userId: user.id },
+        successUrl: `${window.location.origin}/billing?purchase=success`,
+      });
+    } catch (err: any) {
+      toast.error(err.message ?? "Could not open checkout");
+    } finally {
+      setPendingPack(null);
     }
   };
 
@@ -104,14 +173,50 @@ export default function Billing() {
                 </div>
               )}
             </div>
-            {!sponsored && (
-              <Button disabled title="Coming soon">
-                <Sparkles className="w-4 h-4" />
-                Subscribe (coming soon)
-              </Button>
-            )}
           </div>
         </Card>
+
+        <Card className="p-6">
+          <div className="text-sm text-muted-foreground">Credits balance</div>
+          <div className="font-display text-3xl mt-1">{profile.credits_balance.toLocaleString()}</div>
+          <p className="text-sm text-muted-foreground mt-2">
+            {sponsored
+              ? "Sponsored accounts have unlimited AI usage."
+              : "Credits are used by AI features (generate, rewrite, transcribe, OCR)."}
+          </p>
+        </Card>
+
+        {!sponsored && (
+          <div>
+            <h2 className="font-display text-2xl mb-1">Buy credits</h2>
+            <p className="text-muted-foreground mb-4">One-time top-ups. Credits never expire.</p>
+            <div className="grid sm:grid-cols-3 gap-4">
+              {PACKS.map((pack) => (
+                <Card key={pack.key} className={`p-5 flex flex-col ${pack.popular ? "border-accent" : ""}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="font-display text-lg">{pack.name}</div>
+                    {pack.popular && <Badge className="bg-accent text-accent-foreground">Best value</Badge>}
+                  </div>
+                  <div className="mt-3">
+                    <div className="font-display text-3xl">{pack.price}</div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      {pack.credits.toLocaleString()} credits
+                    </div>
+                    <div className="text-xs text-muted-foreground">{pack.per}</div>
+                  </div>
+                  <Button
+                    className="mt-5"
+                    onClick={() => buyPack(pack)}
+                    disabled={checkoutLoading && pendingPack === pack.key}
+                  >
+                    <Zap className="w-4 h-4" />
+                    {checkoutLoading && pendingPack === pack.key ? "Opening…" : "Buy"}
+                  </Button>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
 
         {!sponsored && (
           <Card className="p-6">
@@ -146,15 +251,33 @@ export default function Billing() {
           </Card>
         )}
 
-        <Card className="p-6">
-          <div className="text-sm text-muted-foreground">Credits balance</div>
-          <div className="font-display text-3xl mt-1">{profile.credits_balance.toLocaleString()}</div>
-          <p className="text-sm text-muted-foreground mt-2">
-            {sponsored
-              ? "Sponsored accounts have unlimited AI usage."
-              : "Credits are used by AI features (generate, rewrite, transcribe, OCR)."}
-          </p>
-        </Card>
+        {transactions.length > 0 && (
+          <Card className="p-6">
+            <h2 className="font-display text-xl mb-3">Recent activity</h2>
+            <div className="divide-y divide-border">
+              {transactions.map((tx) => (
+                <div key={tx.id} className="py-2.5 flex items-center justify-between text-sm">
+                  <div>
+                    <div className="font-medium">
+                      {tx.reason === "purchase"
+                        ? `Purchased ${tx.pack_key ?? "credits"} pack`
+                        : tx.reason === "spend"
+                        ? `Used by ${tx.function_name ?? "AI"}`
+                        : tx.reason}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(tx.created_at).toLocaleString()}
+                      {tx.amount_usd != null && ` · $${tx.amount_usd.toFixed(2)}`}
+                    </div>
+                  </div>
+                  <div className={`font-mono ${tx.delta >= 0 ? "text-accent" : "text-muted-foreground"}`}>
+                    {tx.delta >= 0 ? "+" : ""}{tx.delta.toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
       </div>
     </AppShell>
   );
