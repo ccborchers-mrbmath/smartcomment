@@ -492,7 +492,7 @@ export default function StudentCard() {
           <Button variant="ghost" size="sm" onClick={async () => { await loadSavedReports(); setSavedOpen(true); }}>
             <History className="w-4 h-4 mr-1.5" /> Saved reports
           </Button>
-          <Button variant="outline" onClick={generateReport} disabled={reportLoading}>
+          <Button variant="outline" onClick={requestGenerateReport} disabled={reportLoading}>
             {reportLoading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <FileSearch className="w-4 h-4 mr-1.5" />}
             Comprehensive report
           </Button>
