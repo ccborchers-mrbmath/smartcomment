@@ -648,6 +648,30 @@ export default function StudentCard() {
         onCancel={() => setPendingCrop(null)}
         onConfirm={(files) => { setPendingCrop(null); uploadHandwriting(files); }}
       />
+      <AlertDialog open={confirmReportOpen} onOpenChange={setConfirmReportOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Generate comprehensive report?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This synthesizes every note and assessment for {student.name} using a high-end AI model.
+              It typically costs around <strong>25 credits</strong> per run (more if there are many notes).
+              You can review the result and save it when you're happy.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline mr-auto self-center"
+              onClick={() => { localStorage.setItem("skipReportCostWarning", "1"); generateReport(); }}
+            >
+              Don't ask again
+            </button>
+            <AlertDialogAction onClick={generateReport}>Generate</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Dialog open={reportOpen} onOpenChange={setReportOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
