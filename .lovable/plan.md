@@ -1,80 +1,94 @@
-# Marksheet → AI comment integration
+# Credit Packs + Comprehensive Report Warning
 
-## What the teacher gets
+Two pieces of work, shipped together:
 
-On the **Review** screen (where comments are generated for a class), add a small panel:
+1. A warning dialog teachers see the first time they generate a comprehensive student report, so they understand it consumes more credits than a regular comment.
+2. A credit-pack purchase flow so teachers can top up their balance via Stripe (Lovable Payments, seamless).
 
-```text
-Include marksheet data
-  [✓] Include assessment results when writing comments
+---
 
-  Terms to draw from:
-   [✓] 2026 Term 1   [✓] 2026 Term 2
-   [ ] 2026 Term 3   [ ] 2026 Term 4
+## Part 1 — Comprehensive report warning dialog
+
+**Where:** `src/pages/StudentCard.tsx`, on the "Generate comprehensive report" button.
+
+**Behavior:**
+- First click opens a confirmation dialog (shadcn `AlertDialog`).
+- Dialog explains: comprehensive reports analyze every note, mark and prior comment for the student, so they cost roughly **20× a single report comment** (~25 credits vs ~1–2). It pulls the live per-action credit cost from `supabase/functions/_shared/usage.ts` so the number stays honest.
+- Shows current balance and what will remain after.
+- "Don't show this again" checkbox → stored in `localStorage` (`scc.hideCompReportWarning = "1"`).
+- Buttons: **Cancel** / **Generate report**.
+- If balance < estimated cost: replace the confirm button with a **Buy credits** button that routes to `/billing`.
+
+No backend changes for this part.
+
+---
+
+## Part 2 — Credit packs (Stripe seamless payments)
+
+### Pricing (initial — easy to change later)
+| Pack | Credits | Price | Per-credit |
+|---|---|---|---|
+| Starter | 500 | $5 | $0.010 |
+| Standard | 2,000 | $18 | $0.009 |
+| Bulk | 10,000 | $80 | $0.008 |
+
+Roughly 10× our AI cost at the smallest pack with mild volume discounts. All packs are one-time purchases; credits never expire.
+
+### Provider
+Use **Lovable seamless Stripe payments** (`enable_stripe_payments`). Will run `recommend_payment_provider` first to confirm fit. Reasons: digital service, subscription-style top-ups optional later, full per-session tax flexibility, no need for Paddle MoR on a small SaaS yet. Requires Pro plan (already on it) and Lovable Cloud (already enabled).
+
+### Schema changes (one migration)
+```sql
+-- Ledger of every balance change (top-up, spend, refund, admin adjust)
+create table public.credit_transactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  delta integer not null,            -- +credits for purchases, -credits for spend
+  reason text not null,              -- 'purchase' | 'spend' | 'refund' | 'admin_adjust' | 'signup_bonus'
+  function_name text,                -- when reason='spend'
+  usage_event_id uuid,               -- link to usage_events
+  stripe_session_id text,            -- when reason='purchase'
+  pack_key text,                     -- 'starter' | 'standard' | 'bulk'
+  amount_usd numeric,                -- when reason='purchase'
+  metadata jsonb not null default '{}',
+  created_at timestamptz not null default now()
+);
+-- RLS: select own; no insert/update/delete from client (service role only)
+
+-- Idempotency guard for webhook
+create unique index credit_transactions_stripe_session_unique
+  on public.credit_transactions(stripe_session_id) where stripe_session_id is not null;
 ```
 
-- Defaults: checkbox **off**, all four terms ticked.
-- Term checkboxes only appear when the include checkbox is on.
-- The toggle and term selection are session-only (not persisted) — same lightweight pattern as the existing "instruction" field.
-- Sent as `includeMarks: boolean` and `markTerms: string[]` in the existing `generate-comments` invoke body.
+`profiles.credits_balance` stays the source of truth for the UI; the webhook and the spend path both update it inside an RPC that also writes a `credit_transactions` row.
 
-## What the AI receives (per student)
+### Edge functions
+1. **`create-checkout`** (verify_jwt = true) — input: `{ packKey }`. Looks up price, creates Stripe Checkout Session (`mode: 'payment'`), stashes `user_id` + `packKey` + `credits` in `metadata`, returns `{ url }`.
+2. **`stripe-webhook`** (verify_jwt = false) — handles `checkout.session.completed`: verifies signature, idempotently inserts a `credit_transactions` row with reason `'purchase'`, increments `profiles.credits_balance`.
+3. **Update `_shared/usage.ts`** so the existing `recordUsage` helper also writes a matching `credit_transactions` row with reason `'spend'` (no behavior change for callers).
 
-When `includeMarks` is true, the edge function loads `assessments` + `assessment_marks` for the class, filtered to `markTerms`, and appends a new block under each student's existing NOTES:
+### UI changes
+- **`src/pages/Billing.tsx`** — add a "Buy credits" section above the existing content:
+  - Current balance (large), recent transactions table (last 20 from `credit_transactions`).
+  - Three pack cards with "Buy" buttons → call `create-checkout` → redirect to Stripe URL.
+  - Return URLs: `?purchase=success` shows a toast + refetches balance; `?purchase=cancelled` shows a soft toast.
+- **`AppShell` credit pill** (if present) — link to `/billing`.
+- StudentCard warning dialog's "Buy credits" CTA → `/billing`.
 
-```text
-ASSESSMENT SUMMARY:
-- "Fractions quiz" (T1, fractions and equivalent forms): 17/20
-- "Narrative essay" (T1, descriptive writing on a chosen memory): 42/50
-- "Mid-term test" (T2, full term 1 content): 31/50
-- "Speech" (T2, two-minute prepared talk): Absent
-Student's own average across listed assessments: 78%
-Per-assessment delta vs own average: Fractions quiz +7, Narrative essay +6, Mid-term test −16
-```
+### Secrets needed
+- `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` — both provisioned automatically by `enable_stripe_payments`; we don't ask the user.
 
-- Absent / Exempt rows are listed as tags and excluded from the average and deltas.
-- Deltas are computed in the edge function, not by the model — the model is bad at arithmetic and we want it to focus on language.
-- Assessment **description** is included in parentheses so the AI can talk about *what was being assessed*, not just the score.
+### What we are NOT doing in this pass
+- No subscriptions, no auto-refill, no storage quotas, no price-tier grandfathering logic. Credits purchased simply sit on the account forever. Future price changes only affect new purchases — that promise costs us nothing to keep since each transaction is recorded at the price paid.
 
-## Phrasing rules (added to system prompt)
+---
 
-A new dedicated block, high in the prompt, just below the naming rule:
+## Order of execution once approved
+1. `recommend_payment_provider` → `enable_stripe_payments`.
+2. Create the three products/prices via the batch product tool surfaced after enabling.
+3. Migration for `credit_transactions` + RLS.
+4. Edge functions `create-checkout` and `stripe-webhook`; update `_shared/usage.ts`.
+5. Billing page UI + warning dialog on StudentCard.
+6. Smoke test in Stripe test mode end-to-end.
 
-```text
-ASSESSMENT DATA RULES (HIGHEST PRIORITY when ASSESSMENT SUMMARY is present):
-- NEVER state, imply, or hint at a raw mark, percentage, fraction, ranking, position, or "out of" number. Do not say "scored", "achieved X%", "got X out of Y", "top of the class", "above average", "below average", or similar.
-- NEVER compare the student to other students. Comparisons are ONLY between this student's own assessments.
-- Use the per-assessment deltas and descriptions to identify relative strengths and growth areas WITHIN the student's own record.
-- Use comparative language only, e.g. "has shown a stronger performance in {topic from description A} than in {topic from description B}", "is finding {topic} more challenging than {other topic}", "progress in {topic} has lifted noticeably since {earlier assessment topic}".
-- NEVER use "done well in…", "done poorly in…", "did badly", "failed", "excelled", or any qualitative judgement word without a comparative anchor.
-- Refer to assessment content by its DESCRIPTION (e.g. "descriptive writing", "fractions"), NOT by its assessment name (e.g. not "Quiz 1", not "Mid-term test").
-- Absent / Exempt assessments must not be commented on.
-```
-
-## Technical detail
-
-**Frontend — `src/pages/ReviewExport.tsx`**
-- Add state `includeMarks: boolean`, `markTerms: string[]` (init to all four 2026 terms).
-- Render the panel above the existing instruction textarea.
-- Pass `{ includeMarks, markTerms }` in the `supabase.functions.invoke("generate-comments", ...)` body.
-
-**Edge function — `supabase/functions/generate-comments/index.ts`**
-1. Read `includeMarks`, `markTerms` from request body.
-2. If `includeMarks`, after loading students:
-   - `select * from assessments where class_id = $classId and (markTerms is empty or term = any(markTerms)) order by position`
-   - `select * from assessment_marks where assessment_id in (...) and student_id in (studentIds)`
-   - Index marks by `(student_id, assessment_id)`.
-3. Build per-student `ASSESSMENT SUMMARY` text:
-   - For each assessment in order: `"{name}" ({term}, {description}): {raw}/{max} | Absent | Exempt`.
-   - Compute student's own average % across graded marks only.
-   - Compute `delta = round(pct_i - studentAvg)` for each graded assessment; format as `+7 / −16`.
-   - If no graded marks for a student, append `(no marked assessments)` and skip averages/deltas.
-4. Append this block to the `buildBlock(s)` output after NOTES.
-5. Inject the ASSESSMENT DATA RULES block into `systemPrompt` (only when `includeMarks` is true, to keep the prompt lean otherwise).
-
-**No schema changes.** Marksheet tables already exist with correct RLS; the edge function uses the user-scoped supabase client so existing RLS handles authorisation.
-
-**Out of scope (next round)**
-- Per-class average / peer context
-- Showing the assembled marksheet snippet back to the teacher before generation
-- Reading marksheet data into the spellcheck/rewrite flows
+Confirm and I'll switch to build mode and start at step 1.
