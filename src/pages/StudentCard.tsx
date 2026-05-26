@@ -54,6 +54,7 @@ export default function StudentCard() {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportText, setReportText] = useState<string>("");
+  const [confirmReportOpen, setConfirmReportOpen] = useState(false);
   const [interventionLoading, setInterventionLoading] = useState(false);
   const [interventionText, setInterventionText] = useState<string>("");
   const [currentReportId, setCurrentReportId] = useState<string | null>(null);
