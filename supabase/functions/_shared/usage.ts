@@ -59,7 +59,7 @@ export async function logUsage(args: LogUsageArgs): Promise<void> {
     const { data: attr } = await admin.rpc("attribute_usage", { _uid: args.userId });
     const row = Array.isArray(attr) ? attr[0] : attr;
 
-    const { error } = await admin.from("usage_events").insert({
+    const { data: inserted, error } = await admin.from("usage_events").insert({
       user_id: args.userId,
       function_name: args.functionName,
       units: args.units ?? 0,
@@ -68,8 +68,34 @@ export async function logUsage(args: LogUsageArgs): Promise<void> {
       attributed_domain: row?.domain ?? null,
       school_id: row?.school_id ?? null,
       metadata: { model: args.model, ...(args.metadata ?? {}) },
-    });
-    if (error) console.error("logUsage insert error", error);
+    }).select("id").single();
+    if (error) { console.error("logUsage insert error", error); return; }
+
+    // Mirror spend to the credit ledger and deduct from the user's balance
+    // so the Billing activity feed and balance stay in sync with AI usage.
+    if (credits > 0) {
+      const { error: txErr } = await admin.from("credit_transactions").insert({
+        user_id: args.userId,
+        delta: -credits,
+        reason: "spend",
+        function_name: args.functionName,
+        usage_event_id: inserted?.id ?? null,
+        amount_usd: costUsd,
+        metadata: { model: args.model, ...(args.metadata ?? {}) },
+      });
+      if (txErr) {
+        console.error("logUsage ledger error", txErr);
+      } else {
+        // Decrement balance (allow going negative; gating happens elsewhere)
+        const { data: prof } = await admin
+          .from("profiles")
+          .select("credits_balance")
+          .eq("id", args.userId)
+          .maybeSingle();
+        const next = (prof?.credits_balance ?? 0) - credits;
+        await admin.from("profiles").update({ credits_balance: next, updated_at: new Date().toISOString() }).eq("id", args.userId);
+      }
+    }
   } catch (e) {
     // Never throw from usage logging — must not break the user's AI call
     console.error("logUsage failed", e);

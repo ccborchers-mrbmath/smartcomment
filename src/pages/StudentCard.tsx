@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import ImageCropDialog from "@/components/ImageCropDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { marked } from "marked";
@@ -53,6 +54,7 @@ export default function StudentCard() {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportText, setReportText] = useState<string>("");
+  const [confirmReportOpen, setConfirmReportOpen] = useState(false);
   const [interventionLoading, setInterventionLoading] = useState(false);
   const [interventionText, setInterventionText] = useState<string>("");
   const [currentReportId, setCurrentReportId] = useState<string | null>(null);
@@ -256,8 +258,18 @@ export default function StudentCard() {
     }
   };
 
+  const requestGenerateReport = () => {
+    if (!student) return;
+    if (localStorage.getItem("skipReportCostWarning") === "1") {
+      generateReport();
+    } else {
+      setConfirmReportOpen(true);
+    }
+  };
+
   const generateReport = async () => {
     if (!student) return;
+    setConfirmReportOpen(false);
     setReportOpen(true);
     setReportText("");
     setInterventionText("");
@@ -480,7 +492,7 @@ export default function StudentCard() {
           <Button variant="ghost" size="sm" onClick={async () => { await loadSavedReports(); setSavedOpen(true); }}>
             <History className="w-4 h-4 mr-1.5" /> Saved reports
           </Button>
-          <Button variant="outline" onClick={generateReport} disabled={reportLoading}>
+          <Button variant="outline" onClick={requestGenerateReport} disabled={reportLoading}>
             {reportLoading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <FileSearch className="w-4 h-4 mr-1.5" />}
             Comprehensive report
           </Button>
@@ -636,6 +648,30 @@ export default function StudentCard() {
         onCancel={() => setPendingCrop(null)}
         onConfirm={(files) => { setPendingCrop(null); uploadHandwriting(files); }}
       />
+      <AlertDialog open={confirmReportOpen} onOpenChange={setConfirmReportOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Generate comprehensive report?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This synthesizes every note and assessment for {student.name} using a high-end AI model.
+              It typically costs around <strong>25 credits</strong> per run (more if there are many notes).
+              You can review the result and save it when you're happy.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline mr-auto self-center"
+              onClick={() => { localStorage.setItem("skipReportCostWarning", "1"); generateReport(); }}
+            >
+              Don't ask again
+            </button>
+            <AlertDialogAction onClick={generateReport}>Generate</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Dialog open={reportOpen} onOpenChange={setReportOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
