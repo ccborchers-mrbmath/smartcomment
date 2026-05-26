@@ -258,8 +258,18 @@ export default function StudentCard() {
     }
   };
 
+  const requestGenerateReport = () => {
+    if (!student) return;
+    if (localStorage.getItem("skipReportCostWarning") === "1") {
+      generateReport();
+    } else {
+      setConfirmReportOpen(true);
+    }
+  };
+
   const generateReport = async () => {
     if (!student) return;
+    setConfirmReportOpen(false);
     setReportOpen(true);
     setReportText("");
     setInterventionText("");
