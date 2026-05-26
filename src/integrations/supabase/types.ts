@@ -143,6 +143,48 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_transactions: {
+        Row: {
+          amount_usd: number | null
+          created_at: string
+          delta: number
+          function_name: string | null
+          id: string
+          metadata: Json
+          pack_key: string | null
+          paddle_transaction_id: string | null
+          reason: string
+          usage_event_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount_usd?: number | null
+          created_at?: string
+          delta: number
+          function_name?: string | null
+          id?: string
+          metadata?: Json
+          pack_key?: string | null
+          paddle_transaction_id?: string | null
+          reason: string
+          usage_event_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount_usd?: number | null
+          created_at?: string
+          delta?: number
+          function_name?: string | null
+          id?: string
+          metadata?: Json
+          pack_key?: string | null
+          paddle_transaction_id?: string | null
+          reason?: string
+          usage_event_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       feedback: {
         Row: {
           category: string
@@ -621,6 +663,16 @@ export type Database = {
       }
     }
     Functions: {
+      apply_credit_purchase: {
+        Args: {
+          _amount_usd: number
+          _credits: number
+          _pack_key: string
+          _paddle_transaction_id: string
+          _user_id: string
+        }
+        Returns: undefined
+      }
       attribute_usage: {
         Args: { _uid: string }
         Returns: {
