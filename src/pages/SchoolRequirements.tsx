@@ -53,8 +53,14 @@ export default function SchoolRequirements() {
       setLocked((s.locked_fields as any) ?? []);
       const { data: rows } = await supabase.from("school_admins").select("user_id").eq("school_id", s.id);
       setAdmins(rows ?? []);
-      setIsAdmin(!!rows?.find((r) => r.user_id === user?.id));
-    } else {
+      const amAdmin = !!rows?.find((r) => r.user_id === user?.id);
+      setIsAdmin(amAdmin);
+      if (amAdmin) {
+        const { data: tdata } = await supabase.functions.invoke("claim-school-admin", { body: { action: "list_teachers" } });
+        setTeachers((tdata as any)?.teachers ?? []);
+      } else {
+        setTeachers([]);
+      }
       setSchool(null);
       setIsAdmin(false);
     }
