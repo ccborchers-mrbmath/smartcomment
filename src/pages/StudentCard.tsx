@@ -251,6 +251,7 @@ export default function StudentCard() {
       const { data, error } = await supabase.functions.invoke("generate-comments", {
         body: { studentIds: [student.id] },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setGenerating(false); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success("Comment generated");
