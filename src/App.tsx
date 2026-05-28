@@ -7,7 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { BuyCreditsProvider } from "@/components/BuyCreditsDialog";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import SmartRoot from "./components/SmartRoot";
-import Landing from "./pages/Landing";
+
 
 import Pricing from "./pages/Pricing";
 import Terms from "./pages/legal/Terms";
