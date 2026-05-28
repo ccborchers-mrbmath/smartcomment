@@ -86,13 +86,13 @@ export async function logUsage(args: LogUsageArgs): Promise<void> {
       if (txErr) {
         console.error("logUsage ledger error", txErr);
       } else {
-        // Decrement balance (allow going negative; gating happens elsewhere)
+        // Decrement balance; never let it go below 0.
         const { data: prof } = await admin
           .from("profiles")
           .select("credits_balance")
           .eq("id", args.userId)
           .maybeSingle();
-        const next = (prof?.credits_balance ?? 0) - credits;
+        const next = Math.max(0, (prof?.credits_balance ?? 0) - credits);
         await admin.from("profiles").update({ credits_balance: next, updated_at: new Date().toISOString() }).eq("id", args.userId);
       }
     }
