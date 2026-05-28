@@ -23,6 +23,7 @@ type Student = { id: string; name: string; position: number; overrides: any; inc
 export default function ClassView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { openBuyCredits } = useBuyCredits();
   const [klass, setKlass] = useState<Klass | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [notesByStudent, setNotesByStudent] = useState<Record<string, { term: string; body: string }[]>>({});
