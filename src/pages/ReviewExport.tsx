@@ -142,6 +142,7 @@ export default function ReviewExport() {
       const { data, error } = await supabase.functions.invoke("generate-comments", {
         body: { studentIds: [sid] },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setRegenIds((p) => ({ ...p, [sid]: false })); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success("Regenerated");
