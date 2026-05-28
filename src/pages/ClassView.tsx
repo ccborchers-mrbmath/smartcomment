@@ -139,6 +139,7 @@ export default function ClassView() {
       const { data, error } = await supabase.functions.invoke("generate-comments", {
         body: { studentIds: students.map((s) => s.id), includeMarks, markTerms: includeMarks ? markTerms : [] },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setGenerating(false); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success("Generated comments for the whole class");
