@@ -100,6 +100,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-8">{children}</main>
+      <footer className="border-t border-border bg-card/30 mt-8">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground justify-between">
+          <div>© {new Date().getFullYear()} Christopher Charles Borchers</div>
+          <nav className="flex gap-x-5">
+            <Link to="/pricing" className="hover:text-foreground">Pricing</Link>
+            <Link to="/legal/terms" className="hover:text-foreground">Terms</Link>
+            <Link to="/legal/privacy" className="hover:text-foreground">Privacy</Link>
+            <Link to="/legal/refunds" className="hover:text-foreground">Refunds</Link>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 }
+
