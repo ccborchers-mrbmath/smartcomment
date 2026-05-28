@@ -40,6 +40,7 @@ const fileToBase64 = (file: Blob): Promise<string> =>
 export default function StudentCard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { openBuyCredits } = useBuyCredits();
   const [student, setStudent] = useState<Student | null>(null);
   const [activeTerm, setActiveTerm] = useState<string>("2026 Term 2");
   const [siblings, setSiblings] = useState<{ id: string }[]>([]);
