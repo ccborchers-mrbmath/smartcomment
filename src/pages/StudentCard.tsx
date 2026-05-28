@@ -143,6 +143,7 @@ export default function StudentCard() {
       const { data, error } = await supabase.functions.invoke("transcribe-audio", {
         body: { audioBase64: base64, mimeType: "audio/webm" },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setBusy(false); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const { error: insErr } = await supabase.from("student_inputs").insert({
