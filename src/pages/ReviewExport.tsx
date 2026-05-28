@@ -26,6 +26,7 @@ type Row = {
 export default function ReviewExport() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { openBuyCredits } = useBuyCredits();
   const [klass, setKlass] = useState<{ id: string; name: string; requirements: any } | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [edits, setEdits] = useState<Record<string, string>>({});
