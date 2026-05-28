@@ -174,6 +174,7 @@ export default function ReviewExport() {
       const { data, error } = await supabase.functions.invoke("spellcheck-comment", {
         body: { text: current, studentName },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setSpellIds((p) => ({ ...p, [sid]: false })); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const corrected = data?.text ?? "";
