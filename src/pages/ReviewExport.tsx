@@ -76,6 +76,7 @@ export default function ReviewExport() {
       const { data, error } = await supabase.functions.invoke("rewrite-selection", {
         body: { studentId: sid, fullComment, selection, instruction: instruction.trim() || undefined },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setRewriteState((s) => (s ? { ...s, loading: false } : s)); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const replacement = (data?.text ?? "").trim();
