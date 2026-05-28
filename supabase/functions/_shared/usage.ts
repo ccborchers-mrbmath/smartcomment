@@ -55,6 +55,15 @@ export async function logUsage(args: LogUsageArgs): Promise<void> {
     const costUsd = args.costUsd ?? (args.model ? estimateCostFromUsage(args.model, args.usage ?? undefined) : 0);
     const credits = args.credits ?? creditsFromCost(costUsd);
 
+    // Look up sponsorship — sponsored teachers get unlimited free AI,
+    // so we log usage for school invoicing but skip ledger + balance changes.
+    const { data: prof } = await admin
+      .from("profiles")
+      .select("credits_balance, school_sponsored")
+      .eq("id", args.userId)
+      .maybeSingle();
+    const sponsored = !!prof?.school_sponsored;
+
     // Snapshot attribution at insert time
     const { data: attr } = await admin.rpc("attribute_usage", { _uid: args.userId });
     const row = Array.isArray(attr) ? attr[0] : attr;
@@ -63,13 +72,16 @@ export async function logUsage(args: LogUsageArgs): Promise<void> {
       user_id: args.userId,
       function_name: args.functionName,
       units: args.units ?? 0,
-      credits_used: credits,
+      credits_used: sponsored ? 0 : credits,
       cost_usd_estimate: costUsd,
       attributed_domain: row?.domain ?? null,
       school_id: row?.school_id ?? null,
-      metadata: { model: args.model, ...(args.metadata ?? {}) },
+      metadata: { model: args.model, sponsored, ...(args.metadata ?? {}) },
     }).select("id").single();
     if (error) { console.error("logUsage insert error", error); return; }
+
+    // Sponsored users: stop here. No ledger row, no balance decrement.
+    if (sponsored) return;
 
     // Mirror spend to the credit ledger and deduct from the user's balance
     // so the Billing activity feed and balance stay in sync with AI usage.
@@ -86,16 +98,11 @@ export async function logUsage(args: LogUsageArgs): Promise<void> {
       if (txErr) {
         console.error("logUsage ledger error", txErr);
       } else {
-        // Decrement balance; never let it go below 0.
-        const { data: prof } = await admin
-          .from("profiles")
-          .select("credits_balance")
-          .eq("id", args.userId)
-          .maybeSingle();
         const next = Math.max(0, (prof?.credits_balance ?? 0) - credits);
         await admin.from("profiles").update({ credits_balance: next, updated_at: new Date().toISOString() }).eq("id", args.userId);
       }
     }
+
   } catch (e) {
     // Never throw from usage logging — must not break the user's AI call
     console.error("logUsage failed", e);
