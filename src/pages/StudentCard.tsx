@@ -284,6 +284,7 @@ export default function StudentCard() {
       const { data, error } = await supabase.functions.invoke("student-report", {
         body: { studentId: student.id, mode: "synthesis" },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setReportLoading(false); setReportOpen(false); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setReportText(data?.text ?? "");
