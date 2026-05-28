@@ -26,7 +26,7 @@ serve(async (req) => {
     if (!domain) return json({ error: "Invalid email" }, 400);
 
     const body = await req.json().catch(() => ({}));
-    const action = body.action as "claim" | "add_admin" | "remove_admin";
+    const action = body.action as "claim" | "add_admin" | "remove_admin" | "list_teachers" | "revoke_teacher";
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
     // Find or create school
