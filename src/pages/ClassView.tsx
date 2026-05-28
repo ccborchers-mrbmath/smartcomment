@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { useBuyCredits, handleInsufficientCredits } from "@/components/BuyCreditsDialog";
 
 const TERMS = ["2026 Term 1", "2026 Term 2", "2026 Term 3", "2026 Term 4"] as const;
 
@@ -22,6 +23,7 @@ type Student = { id: string; name: string; position: number; overrides: any; inc
 export default function ClassView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { openBuyCredits } = useBuyCredits();
   const [klass, setKlass] = useState<Klass | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [notesByStudent, setNotesByStudent] = useState<Record<string, { term: string; body: string }[]>>({});
@@ -137,6 +139,7 @@ export default function ClassView() {
       const { data, error } = await supabase.functions.invoke("generate-comments", {
         body: { studentIds: students.map((s) => s.id), includeMarks, markTerms: includeMarks ? markTerms : [] },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setGenerating(false); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success("Generated comments for the whole class");

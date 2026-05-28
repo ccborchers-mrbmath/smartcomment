@@ -15,6 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { marked } from "marked";
+import { useBuyCredits, handleInsufficientCredits } from "@/components/BuyCreditsDialog";
 
 type Student = { id: string; name: string; class_id: string; overrides: any };
 type Input = {
@@ -39,6 +40,7 @@ const fileToBase64 = (file: Blob): Promise<string> =>
 export default function StudentCard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { openBuyCredits } = useBuyCredits();
   const [student, setStudent] = useState<Student | null>(null);
   const [activeTerm, setActiveTerm] = useState<string>("2026 Term 2");
   const [siblings, setSiblings] = useState<{ id: string }[]>([]);
@@ -141,6 +143,7 @@ export default function StudentCard() {
       const { data, error } = await supabase.functions.invoke("transcribe-audio", {
         body: { audioBase64: base64, mimeType: "audio/webm" },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setBusy(false); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const { error: insErr } = await supabase.from("student_inputs").insert({
@@ -184,6 +187,7 @@ export default function StudentCard() {
       const { data, error } = await supabase.functions.invoke("ocr-handwriting", {
         body: { bucket: "handwriting", paths },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setBusy(false); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const { error: insErr } = await supabase.from("student_inputs").insert({
@@ -247,6 +251,7 @@ export default function StudentCard() {
       const { data, error } = await supabase.functions.invoke("generate-comments", {
         body: { studentIds: [student.id] },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setGenerating(false); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success("Comment generated");
@@ -279,6 +284,7 @@ export default function StudentCard() {
       const { data, error } = await supabase.functions.invoke("student-report", {
         body: { studentId: student.id, mode: "synthesis" },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setReportLoading(false); setReportOpen(false); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setReportText(data?.text ?? "");
@@ -297,6 +303,7 @@ export default function StudentCard() {
       const { data, error } = await supabase.functions.invoke("student-report", {
         body: { studentId: student.id, mode: "interventions", synthesis: reportText },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setInterventionLoading(false); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setInterventionText(data?.text ?? "");

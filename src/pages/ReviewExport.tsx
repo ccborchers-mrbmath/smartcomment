@@ -11,6 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
+import { useBuyCredits, handleInsufficientCredits } from "@/components/BuyCreditsDialog";
 
 type Version = { id: string; text: string; version: number; created_at: string };
 type Row = {
@@ -25,6 +26,7 @@ type Row = {
 export default function ReviewExport() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { openBuyCredits } = useBuyCredits();
   const [klass, setKlass] = useState<{ id: string; name: string; requirements: any } | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -74,6 +76,7 @@ export default function ReviewExport() {
       const { data, error } = await supabase.functions.invoke("rewrite-selection", {
         body: { studentId: sid, fullComment, selection, instruction: instruction.trim() || undefined },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setRewriteState((s) => (s ? { ...s, loading: false } : s)); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const replacement = (data?.text ?? "").trim();
@@ -139,6 +142,7 @@ export default function ReviewExport() {
       const { data, error } = await supabase.functions.invoke("generate-comments", {
         body: { studentIds: [sid] },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setRegenIds((p) => ({ ...p, [sid]: false })); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success("Regenerated");
@@ -170,6 +174,7 @@ export default function ReviewExport() {
       const { data, error } = await supabase.functions.invoke("spellcheck-comment", {
         body: { text: current, studentName },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setSpellIds((p) => ({ ...p, [sid]: false })); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const corrected = data?.text ?? "";

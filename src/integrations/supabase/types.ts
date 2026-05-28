@@ -680,6 +680,7 @@ export type Database = {
           school_id: string
         }[]
       }
+      can_use_ai: { Args: { _uid: string }; Returns: boolean }
       email_domain: { Args: { _uid: string }; Returns: string }
       has_active_access: { Args: { _uid: string }; Returns: boolean }
       is_school_admin: {
