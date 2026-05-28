@@ -303,6 +303,7 @@ export default function StudentCard() {
       const { data, error } = await supabase.functions.invoke("student-report", {
         body: { studentId: student.id, mode: "interventions", synthesis: reportText },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setInterventionLoading(false); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setInterventionText(data?.text ?? "");
