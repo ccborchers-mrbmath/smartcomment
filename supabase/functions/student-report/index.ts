@@ -26,6 +26,9 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    const ent = await checkEntitlement(user.id);
+    if (ent instanceof Response) return ent;
+
     const { studentId, mode, synthesis } = await req.json();
     if (!studentId || typeof studentId !== "string") {
       return new Response(JSON.stringify({ error: "studentId required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
