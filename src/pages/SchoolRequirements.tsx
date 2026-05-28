@@ -32,6 +32,7 @@ export default function SchoolRequirements() {
   const [reqs, setReqs] = useState<any>({});
   const [locked, setLocked] = useState<string[]>([]);
   const [admins, setAdmins] = useState<{ user_id: string; email?: string }[]>([]);
+  const [teachers, setTeachers] = useState<{ id: string; email: string | null; school_email: string | null; school_email_verified_at: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [extracting, setExtracting] = useState(false);
