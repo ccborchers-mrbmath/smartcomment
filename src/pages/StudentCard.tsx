@@ -187,6 +187,7 @@ export default function StudentCard() {
       const { data, error } = await supabase.functions.invoke("ocr-handwriting", {
         body: { bucket: "handwriting", paths },
       });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) { setBusy(false); return; }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       const { error: insErr } = await supabase.from("student_inputs").insert({
