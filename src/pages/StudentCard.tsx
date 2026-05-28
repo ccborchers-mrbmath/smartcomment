@@ -15,6 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { marked } from "marked";
+import { useBuyCredits, handleInsufficientCredits } from "@/components/BuyCreditsDialog";
 
 type Student = { id: string; name: string; class_id: string; overrides: any };
 type Input = {
