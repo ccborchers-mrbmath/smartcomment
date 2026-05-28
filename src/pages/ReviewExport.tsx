@@ -11,6 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
+import { useBuyCredits, handleInsufficientCredits } from "@/components/BuyCreditsDialog";
 
 type Version = { id: string; text: string; version: number; created_at: string };
 type Row = {
