@@ -42,8 +42,9 @@ const App = () => (
           <BuyCreditsProvider>
             <Routes>
               {/* Public */}
-              <Route path="/" element={<Landing />} />
+              <Route path="/" element={<SmartRoot />} />
               <Route path="/pricing" element={<Pricing />} />
+
               <Route path="/legal/terms" element={<Terms />} />
               <Route path="/legal/privacy" element={<Privacy />} />
               <Route path="/legal/refunds" element={<Refund />} />
