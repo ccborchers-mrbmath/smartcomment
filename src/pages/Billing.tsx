@@ -167,10 +167,25 @@ export default function Billing() {
                 )}
               </div>
               {sponsored && profile.school_email && (
-                <div className="text-sm text-muted-foreground mt-2 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-accent" />
-                  Verified as {profile.school_email}
-                </div>
+                <>
+                  <div className="text-sm text-muted-foreground mt-2 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-accent" />
+                    Verified as {profile.school_email}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-3 -ml-2 text-muted-foreground hover:text-foreground"
+                    onClick={async () => {
+                      if (!confirm("Unlink your school email? You'll lose sponsored access and will need to re-verify to get it back.")) return;
+                      const { error } = await supabase.functions.invoke("unlink-school-email", { body: {} });
+                      if (error) toast.error(error.message);
+                      else { toast.success("School email unlinked."); load(); }
+                    }}
+                  >
+                    Unlink school email
+                  </Button>
+                </>
               )}
             </div>
           </div>

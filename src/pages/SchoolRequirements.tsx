@@ -32,6 +32,7 @@ export default function SchoolRequirements() {
   const [reqs, setReqs] = useState<any>({});
   const [locked, setLocked] = useState<string[]>([]);
   const [admins, setAdmins] = useState<{ user_id: string; email?: string }[]>([]);
+  const [teachers, setTeachers] = useState<{ id: string; email: string | null; school_email: string | null; school_email_verified_at: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [extracting, setExtracting] = useState(false);
@@ -52,7 +53,14 @@ export default function SchoolRequirements() {
       setLocked((s.locked_fields as any) ?? []);
       const { data: rows } = await supabase.from("school_admins").select("user_id").eq("school_id", s.id);
       setAdmins(rows ?? []);
-      setIsAdmin(!!rows?.find((r) => r.user_id === user?.id));
+      const amAdmin = !!rows?.find((r) => r.user_id === user?.id);
+      setIsAdmin(amAdmin);
+      if (amAdmin) {
+        const { data: tdata } = await supabase.functions.invoke("claim-school-admin", { body: { action: "list_teachers" } });
+        setTeachers((tdata as any)?.teachers ?? []);
+      } else {
+        setTeachers([]);
+      }
     } else {
       setSchool(null);
       setIsAdmin(false);
@@ -114,6 +122,19 @@ export default function SchoolRequirements() {
       toast.error((data as any)?.error || error?.message || "Failed");
       return;
     }
+    load();
+  };
+
+  const revokeTeacher = async (uid: string, label: string) => {
+    if (!confirm(`Revoke sponsored access for ${label}? They'll be moved back to the regular trial/credits flow.`)) return;
+    const { data, error } = await supabase.functions.invoke("claim-school-admin", {
+      body: { action: "revoke_teacher", user_id: uid },
+    });
+    if (error || (data as any)?.error) {
+      toast.error((data as any)?.error || error?.message || "Failed");
+      return;
+    }
+    toast.success("Teacher unlinked from school.");
     load();
   };
 
@@ -287,6 +308,36 @@ export default function SchoolRequirements() {
             onChange={(e) => setAdminEmail(e.target.value)}
           />
           <Button onClick={addAdmin} disabled={!adminEmail}>Add</Button>
+        </div>
+      </Card>
+
+      <Card className="p-6 max-w-2xl mt-8 space-y-4">
+        <h2 className="font-display text-2xl">Sponsored teachers</h2>
+        <p className="text-sm text-muted-foreground">
+          Teachers who have verified an <span className="font-mono">@{domain}</span> email. Revoking removes their sponsored status — they'll go back to the regular trial/credits flow.
+        </p>
+        <div className="space-y-2">
+          {teachers.length === 0 && (
+            <p className="text-sm text-muted-foreground italic">No teachers have linked their school email yet.</p>
+          )}
+          {teachers.map((t) => (
+            <div key={t.id} className="flex items-center justify-between border rounded-md px-3 py-2 text-sm">
+              <div className="min-w-0">
+                <div className="font-medium truncate">{t.school_email}</div>
+                <div className="text-xs text-muted-foreground truncate">
+                  Login: {t.email ?? "—"}
+                  {t.school_email_verified_at && ` · verified ${new Date(t.school_email_verified_at).toLocaleDateString()}`}
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => revokeTeacher(t.id, t.school_email ?? t.email ?? "this teacher")}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          ))}
         </div>
       </Card>
     </AppShell>
