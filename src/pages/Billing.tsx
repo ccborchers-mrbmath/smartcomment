@@ -193,13 +193,16 @@ export default function Billing() {
 
         <Card className="p-6">
           <div className="text-sm text-muted-foreground">Credits balance</div>
-          <div className="font-display text-3xl mt-1">{profile.credits_balance.toLocaleString()}</div>
+          <div className="font-display text-3xl mt-1">
+            {sponsored ? "Unlimited" : profile.credits_balance.toLocaleString()}
+          </div>
           <p className="text-sm text-muted-foreground mt-2">
             {sponsored
-              ? "Sponsored accounts have unlimited AI usage."
+              ? "Sponsored accounts have unlimited AI usage — no credits are deducted."
               : "Credits are used by AI features (generate, rewrite, transcribe, OCR)."}
           </p>
         </Card>
+
 
         {!sponsored && (
           <div>
