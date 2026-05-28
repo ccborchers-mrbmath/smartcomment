@@ -61,6 +61,7 @@ export default function SchoolRequirements() {
       } else {
         setTeachers([]);
       }
+    } else {
       setSchool(null);
       setIsAdmin(false);
     }
