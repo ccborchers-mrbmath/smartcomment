@@ -125,6 +125,19 @@ export default function SchoolRequirements() {
     load();
   };
 
+  const revokeTeacher = async (uid: string, label: string) => {
+    if (!confirm(`Revoke sponsored access for ${label}? They'll be moved back to the regular trial/credits flow.`)) return;
+    const { data, error } = await supabase.functions.invoke("claim-school-admin", {
+      body: { action: "revoke_teacher", user_id: uid },
+    });
+    if (error || (data as any)?.error) {
+      toast.error((data as any)?.error || error?.message || "Failed");
+      return;
+    }
+    toast.success("Teacher unlinked from school.");
+    load();
+  };
+
   const handlePolicyFile = async (file: File) => {
     setExtracting(true);
     try {
