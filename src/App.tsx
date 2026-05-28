@@ -6,6 +6,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
 import { BuyCreditsProvider } from "@/components/BuyCreditsDialog";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import Landing from "./pages/Landing";
+import Pricing from "./pages/Pricing";
+import Terms from "./pages/legal/Terms";
+import Privacy from "./pages/legal/Privacy";
+import Refund from "./pages/legal/Refund";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import NewClass from "./pages/NewClass";
@@ -34,8 +39,17 @@ const App = () => (
         <AuthProvider>
           <BuyCreditsProvider>
             <Routes>
+              {/* Public */}
+              <Route path="/" element={<Landing />} />
+              <Route path="/pricing" element={<Pricing />} />
+              <Route path="/legal/terms" element={<Terms />} />
+              <Route path="/legal/privacy" element={<Privacy />} />
+              <Route path="/legal/refunds" element={<Refund />} />
               <Route path="/auth" element={<Auth />} />
-              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/verify-school" element={<VerifySchool />} />
+
+              {/* Authenticated app */}
+              <Route path="/app" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/classes/new" element={<ProtectedRoute><NewClass /></ProtectedRoute>} />
               <Route path="/classes/:id" element={<ProtectedRoute><ClassView /></ProtectedRoute>} />
               <Route path="/classes/:id/review" element={<ProtectedRoute><ReviewExport /></ProtectedRoute>} />
@@ -46,7 +60,6 @@ const App = () => (
               <Route path="/school" element={<ProtectedRoute><SchoolRequirements /></ProtectedRoute>} />
               <Route path="/feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
               <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
-              <Route path="/verify-school" element={<VerifySchool />} />
               <Route path="/school/invoice" element={<ProtectedRoute><SchoolInvoice /></ProtectedRoute>} />
               <Route path="/admin/domains" element={<ProtectedRoute><AdminDomains /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
