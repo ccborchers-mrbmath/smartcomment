@@ -32,24 +32,26 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/classes/new" element={<ProtectedRoute><NewClass /></ProtectedRoute>} />
-            <Route path="/classes/:id" element={<ProtectedRoute><ClassView /></ProtectedRoute>} />
-            <Route path="/classes/:id/review" element={<ProtectedRoute><ReviewExport /></ProtectedRoute>} />
-            <Route path="/classes/:id/marksheet" element={<ProtectedRoute><ClassMarksheet /></ProtectedRoute>} />
-            <Route path="/students/:id" element={<ProtectedRoute><StudentCard /></ProtectedRoute>} />
-            <Route path="/style-bank" element={<ProtectedRoute><StyleBank /></ProtectedRoute>} />
-            <Route path="/requirements" element={<ProtectedRoute><Requirements /></ProtectedRoute>} />
-            <Route path="/school" element={<ProtectedRoute><SchoolRequirements /></ProtectedRoute>} />
-            <Route path="/feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
-            <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
-            <Route path="/verify-school" element={<VerifySchool />} />
-            <Route path="/school/invoice" element={<ProtectedRoute><SchoolInvoice /></ProtectedRoute>} />
-            <Route path="/admin/domains" element={<ProtectedRoute><AdminDomains /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <BuyCreditsProvider>
+            <Routes>
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/classes/new" element={<ProtectedRoute><NewClass /></ProtectedRoute>} />
+              <Route path="/classes/:id" element={<ProtectedRoute><ClassView /></ProtectedRoute>} />
+              <Route path="/classes/:id/review" element={<ProtectedRoute><ReviewExport /></ProtectedRoute>} />
+              <Route path="/classes/:id/marksheet" element={<ProtectedRoute><ClassMarksheet /></ProtectedRoute>} />
+              <Route path="/students/:id" element={<ProtectedRoute><StudentCard /></ProtectedRoute>} />
+              <Route path="/style-bank" element={<ProtectedRoute><StyleBank /></ProtectedRoute>} />
+              <Route path="/requirements" element={<ProtectedRoute><Requirements /></ProtectedRoute>} />
+              <Route path="/school" element={<ProtectedRoute><SchoolRequirements /></ProtectedRoute>} />
+              <Route path="/feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
+              <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+              <Route path="/verify-school" element={<VerifySchool />} />
+              <Route path="/school/invoice" element={<ProtectedRoute><SchoolInvoice /></ProtectedRoute>} />
+              <Route path="/admin/domains" element={<ProtectedRoute><AdminDomains /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BuyCreditsProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
