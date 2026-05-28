@@ -22,6 +22,9 @@ serve(async (req) => {
     const user = userRes?.user;
     if (!user) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    const ent = await checkEntitlement(user.id);
+    if (ent instanceof Response) return ent;
+
     const { studentIds, instruction, includeMarks, markTerms } = await req.json();
     if (!Array.isArray(studentIds) || studentIds.length === 0) {
       return new Response(JSON.stringify({ error: "No students" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
