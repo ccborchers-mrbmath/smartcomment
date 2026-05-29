@@ -101,12 +101,21 @@ export default function Billing() {
       const { data, error } = await supabase.functions.invoke("request-school-verification", {
         body: { email: email.trim().toLowerCase(), redirectBase: window.location.origin },
       });
-      if (error) throw error;
-      if ((data as any)?.error) {
-        toast.error((data as any).message ?? (data as any).error);
-      } else if ((data as any)?.devLink) {
+      // supabase-js raises `error` for any non-2xx status. The real reason is in
+      // the response body — read it from error.context before falling back.
+      let payload: any = data;
+      if (error) {
+        try {
+          payload = await (error as any).context?.json?.();
+        } catch { /* ignore */ }
+      }
+      if (payload?.error) {
+        toast.error(payload.message ?? payload.error);
+      } else if (error) {
+        toast.error(error.message ?? "Could not send verification");
+      } else if (payload?.devLink) {
         toast.success("Email service not configured — opening verification link directly.");
-        window.location.href = (data as any).devLink;
+        window.location.href = payload.devLink;
       } else {
         toast.success(`Check ${email} for a verification link.`);
         setEmail("");
