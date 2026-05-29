@@ -18,6 +18,12 @@ const corsHeaders = {
 };
 
 export async function checkEntitlement(userId: string): Promise<EntitlementOk | Response> {
+  // TEMPORARY: AI usage restrictions disabled for all users while email
+  // verification / school sponsorship flow is being reworked. Re-enable by
+  // restoring the profile lookup + balance/sponsorship/subscription gate.
+  return { ok: true, sponsored: true, balance: 0 };
+
+  // eslint-disable-next-line no-unreachable
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
   const { data, error } = await admin
     .from("profiles")
