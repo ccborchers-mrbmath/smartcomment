@@ -1,0 +1,1 @@
+insert into public.schools (domain, name) values ('ashtonballito.co.za', 'Ashton International College Ballito') on conflict (domain) do nothing;
