@@ -86,7 +86,7 @@ export default function Auth() {
               controls
               playsInline
               preload="metadata"
-              poster=""
+              poster="/smartcomment-explainer-poster.jpg"
               className="w-full aspect-video bg-foreground"
             />
           </div>
