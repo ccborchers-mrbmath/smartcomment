@@ -64,6 +64,8 @@ export default function StudentCard() {
   const [savedReports, setSavedReports] = useState<{ id: string; title: string | null; created_at: string; updated_at: string }[]>([]);
   const [savedOpen, setSavedOpen] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const cancelledRef = useRef(false);
   const chunksRef = useRef<Blob[]>([]);
 
   const load = async () => {
