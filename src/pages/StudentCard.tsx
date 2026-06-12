@@ -114,9 +114,16 @@ export default function StudentCard() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const rec = new MediaRecorder(stream);
       chunksRef.current = [];
+      cancelledRef.current = false;
+      streamRef.current = stream;
       rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
       rec.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        if (cancelledRef.current) {
+          chunksRef.current = [];
+          return;
+        }
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         await uploadVoice(blob);
       };
@@ -131,6 +138,17 @@ export default function StudentCard() {
   const stopRecording = () => {
     recorderRef.current?.stop();
     setRecording(false);
+  };
+
+  const cancelRecording = () => {
+    cancelledRef.current = true;
+    try { recorderRef.current?.stop(); } catch { /* noop */ }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    recorderRef.current = null;
+    chunksRef.current = [];
+    setRecording(false);
+    toast("Recording cancelled");
   };
 
   const uploadVoice = async (blob: Blob) => {
