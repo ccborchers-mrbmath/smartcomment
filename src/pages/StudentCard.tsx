@@ -551,9 +551,14 @@ export default function StudentCard() {
                   <Mic className="w-4 h-4 mr-1.5" />Record voice note
                 </Button>
               ) : (
-                <Button onClick={stopRecording} variant="destructive" size="lg" className="w-full animate-pulse">
-                  <Square className="w-4 h-4 mr-1.5" />Stop & transcribe
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button onClick={cancelRecording} variant="outline" size="lg" className="w-full">
+                    <X className="w-4 h-4 mr-1.5" />Cancel
+                  </Button>
+                  <Button onClick={stopRecording} variant="destructive" size="lg" className="w-full animate-pulse">
+                    <Square className="w-4 h-4 mr-1.5" />Stop & transcribe
+                  </Button>
+                </div>
               )}
               {busy && <p className="text-sm text-muted-foreground mt-3">Transcribing…</p>}
             </TabsContent>
