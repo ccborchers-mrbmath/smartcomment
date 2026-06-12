@@ -64,6 +64,8 @@ export default function StudentCard() {
   const [savedReports, setSavedReports] = useState<{ id: string; title: string | null; created_at: string; updated_at: string }[]>([]);
   const [savedOpen, setSavedOpen] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const cancelledRef = useRef(false);
   const chunksRef = useRef<Blob[]>([]);
 
   const load = async () => {
@@ -112,9 +114,16 @@ export default function StudentCard() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const rec = new MediaRecorder(stream);
       chunksRef.current = [];
+      cancelledRef.current = false;
+      streamRef.current = stream;
       rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
       rec.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        if (cancelledRef.current) {
+          chunksRef.current = [];
+          return;
+        }
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         await uploadVoice(blob);
       };
@@ -129,6 +138,17 @@ export default function StudentCard() {
   const stopRecording = () => {
     recorderRef.current?.stop();
     setRecording(false);
+  };
+
+  const cancelRecording = () => {
+    cancelledRef.current = true;
+    try { recorderRef.current?.stop(); } catch { /* noop */ }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    recorderRef.current = null;
+    chunksRef.current = [];
+    setRecording(false);
+    toast("Recording cancelled");
   };
 
   const uploadVoice = async (blob: Blob) => {
@@ -531,9 +551,14 @@ export default function StudentCard() {
                   <Mic className="w-4 h-4 mr-1.5" />Record voice note
                 </Button>
               ) : (
-                <Button onClick={stopRecording} variant="destructive" size="lg" className="w-full animate-pulse">
-                  <Square className="w-4 h-4 mr-1.5" />Stop & transcribe
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button onClick={cancelRecording} variant="outline" size="lg" className="w-full">
+                    <X className="w-4 h-4 mr-1.5" />Cancel
+                  </Button>
+                  <Button onClick={stopRecording} variant="destructive" size="lg" className="w-full animate-pulse">
+                    <Square className="w-4 h-4 mr-1.5" />Stop & transcribe
+                  </Button>
+                </div>
               )}
               {busy && <p className="text-sm text-muted-foreground mt-3">Transcribing…</p>}
             </TabsContent>
