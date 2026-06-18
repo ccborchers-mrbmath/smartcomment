@@ -73,13 +73,16 @@ export default function SchoolInvoice() {
   // Fetch usage rows for school + month
   useEffect(() => {
     if (!schoolId) { setRows([]); return; }
+    const schoolDomain = schools.find((s) => s.id === schoolId)?.domain;
+    if (!schoolDomain) { setRows([]); return; }
     setLoading(true);
     const { start, end } = rangeFor(month);
     (async () => {
+      // Match by school_id (newer events) OR attributed_domain (older events lacking school_id)
       const { data } = await supabase
         .from("usage_events")
         .select("user_id, function_name, units, credits_used, cost_usd_estimate, created_at")
-        .eq("school_id", schoolId)
+        .or(`school_id.eq.${schoolId},attributed_domain.eq.${schoolDomain}`)
         .gte("created_at", start)
         .lt("created_at", end)
         .order("created_at", { ascending: false })
@@ -96,7 +99,7 @@ export default function SchoolInvoice() {
       }
       setLoading(false);
     })();
-  }, [schoolId, month]);
+  }, [schoolId, month, schools]);
 
   const totals = useMemo(() => {
     const t = { events: 0, units: 0, credits: 0, cost: 0 };
