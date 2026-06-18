@@ -57,7 +57,7 @@ export default function SchoolInvoice() {
         // Super admin: read schools that have any usage events
         const { data } = await supabase.from("schools").select("id, name, domain").order("name");
         setSchools(data ?? []);
-        if ((data ?? []).length && !schoolId) setSchoolId(data![0].id);
+        if ((data ?? []).length && !schoolId) setSchoolId("all");
       } else {
         // School admin: only their schools
         const { data: admins } = await supabase.from("school_admins").select("school_id");
@@ -65,7 +65,7 @@ export default function SchoolInvoice() {
         if (!ids.length) { setSchools([]); return; }
         const { data } = await supabase.from("schools").select("id, name, domain").in("id", ids).order("name");
         setSchools(data ?? []);
-        if ((data ?? []).length && !schoolId) setSchoolId(data![0].id);
+        if ((data ?? []).length && !schoolId) setSchoolId(ids.length > 1 ? "all" : data![0].id);
       }
     })();
   }, [user, isSuperAdmin]);
@@ -73,20 +73,26 @@ export default function SchoolInvoice() {
   // Fetch usage rows for school + month
   useEffect(() => {
     if (!schoolId) { setRows([]); return; }
-    const schoolDomain = schools.find((s) => s.id === schoolId)?.domain;
-    if (!schoolDomain) { setRows([]); return; }
+    const isAll = schoolId === "all";
+    const schoolDomain = isAll ? null : schools.find((s) => s.id === schoolId)?.domain;
+    if (!isAll && !schoolDomain) { setRows([]); return; }
     setLoading(true);
     const { start, end } = rangeFor(month);
     (async () => {
-      // Match by school_id (newer events) OR attributed_domain (older events lacking school_id)
-      const { data } = await supabase
+      let q = supabase
         .from("usage_events")
         .select("user_id, function_name, units, credits_used, cost_usd_estimate, created_at")
-        .or(`school_id.eq.${schoolId},attributed_domain.eq.${schoolDomain}`)
         .gte("created_at", start)
         .lt("created_at", end)
         .order("created_at", { ascending: false })
         .limit(10000);
+
+      if (!isAll) {
+        // Match by school_id (newer events) OR attributed_domain (older events lacking school_id)
+        q = q.or(`school_id.eq.${schoolId},attributed_domain.eq.${schoolDomain}`);
+      }
+
+      const { data } = await q;
       setRows((data as Row[]) ?? []);
 
       // Fetch emails for these users from profiles
@@ -142,7 +148,8 @@ export default function SchoolInvoice() {
     const blob = new Blob([header + lines.join("\n") + "\n" + featureLines.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `invoice-${school?.domain ?? "school"}-${month}.csv`; a.click();
+    const filenameBase = schoolId === "all" ? "all-schools" : (school?.domain ?? "school");
+    a.href = url; a.download = `invoice-${filenameBase}-${month}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -155,12 +162,13 @@ export default function SchoolInvoice() {
         </div>
 
         <Card className="p-5 flex flex-wrap items-end gap-4">
-          {schools.length > 1 && (
+          {(schools.length > 1 || schoolId === "all") && (
             <div className="space-y-1">
               <div className="text-xs text-muted-foreground">School</div>
               <Select value={schoolId ?? undefined} onValueChange={setSchoolId}>
                 <SelectTrigger className="w-64"><SelectValue placeholder="Pick school" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">All schools</SelectItem>
                   {schools.map((s) => (
                     <SelectItem key={s.id} value={s.id}>{s.name ?? s.domain}</SelectItem>
                   ))}
@@ -185,13 +193,17 @@ export default function SchoolInvoice() {
           </Button>
         </Card>
 
-        {school && (
+        {(school || schoolId === "all") && (
           <Card className="p-6">
             <div className="flex items-baseline justify-between">
               <div>
                 <div className="text-sm text-muted-foreground">Invoice for</div>
-                <div className="font-display text-2xl">{school.name ?? school.domain}</div>
-                <div className="text-sm text-muted-foreground">{monthLabel} · {school.domain}</div>
+                <div className="font-display text-2xl">
+                  {schoolId === "all" ? "All schools" : (school?.name ?? school?.domain)}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {monthLabel} · {schoolId === "all" ? `${schools.length} schools` : school?.domain}
+                </div>
               </div>
               <div className="text-right">
                 <div className="text-sm text-muted-foreground">Total estimated cost</div>
