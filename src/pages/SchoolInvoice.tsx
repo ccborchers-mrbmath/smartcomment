@@ -79,24 +79,32 @@ export default function SchoolInvoice() {
     setLoading(true);
     const { start, end } = rangeFor(month);
     (async () => {
-      let q = supabase
-        .from("usage_events")
-        .select("user_id, function_name, units, credits_used, cost_usd_estimate, created_at")
-        .gte("created_at", start)
-        .lt("created_at", end)
-        .order("created_at", { ascending: false })
-        .limit(10000);
+      // Paginate — PostgREST caps each response at 1000 rows.
+      const PAGE = 1000;
+      const all: Row[] = [];
+      for (let from = 0; ; from += PAGE) {
+        let q = supabase
+          .from("usage_events")
+          .select("user_id, function_name, units, credits_used, cost_usd_estimate, created_at")
+          .gte("created_at", start)
+          .lt("created_at", end)
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE - 1);
 
-      if (!isAll) {
-        // Match by school_id (newer events) OR attributed_domain (older events lacking school_id)
-        q = q.or(`school_id.eq.${schoolId},attributed_domain.eq.${schoolDomain}`);
+        if (!isAll) {
+          q = q.or(`school_id.eq.${schoolId},attributed_domain.eq.${schoolDomain}`);
+        }
+
+        const { data, error } = await q;
+        if (error || !data?.length) break;
+        all.push(...(data as Row[]));
+        if (data.length < PAGE) break;
+        if (all.length >= 100000) break; // safety cap
       }
-
-      const { data } = await q;
-      setRows((data as Row[]) ?? []);
+      setRows(all);
 
       // Fetch emails for these users from profiles
-      const uids = Array.from(new Set((data ?? []).map((r) => r.user_id)));
+      const uids = Array.from(new Set(all.map((r) => r.user_id)));
       if (uids.length) {
         const { data: profs } = await supabase.from("profiles").select("id, email, full_name").in("id", uids);
         const m: Record<string, string> = {};
