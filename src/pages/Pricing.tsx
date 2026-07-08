@@ -14,9 +14,9 @@ const SUBSCRIPTION = {
 };
 
 const PACKS = [
-  { name: "Starter", credits: 500, price: "$5", per: "$0.010 / credit" },
-  { name: "Standard", credits: 2000, price: "$18", per: "$0.009 / credit", popular: true },
-  { name: "Bulk", credits: 10000, price: "$80", per: "$0.008 / credit" },
+  { name: "Starter", credits: 500, price: "R89", per: "R0.18 / credit" },
+  { name: "Standard", credits: 2000, price: "R329", per: "R0.16 / credit", popular: true },
+  { name: "Bulk", credits: 10000, price: "R1,449", per: "R0.14 / credit" },
 ];
 
 export default function Pricing() {
