@@ -201,6 +201,20 @@ export default function Billing() {
   const sponsored = profile.school_sponsored;
   const daysLeft = trialDaysLeft(profile.trial_started_at);
   const inTrial = profile.subscription_status === "trialing" && daysLeft > 0;
+  const isSubscribed =
+    !sponsored &&
+    profile.subscription_price_id === SUBSCRIPTION.priceId &&
+    ["active", "trialing", "past_due"].includes(profile.subscription_status);
+  const isPaused = profile.subscription_status === "paused";
+  const isCanceled =
+    profile.subscription_status === "canceled" &&
+    profile.subscription_current_period_end &&
+    new Date(profile.subscription_current_period_end) > new Date();
+  const periodEndLabel = profile.subscription_current_period_end
+    ? new Date(profile.subscription_current_period_end).toLocaleDateString(undefined, {
+        year: "numeric", month: "short", day: "numeric",
+      })
+    : null;
 
   return (
     <AppShell>
@@ -217,14 +231,36 @@ export default function Billing() {
               <div className="font-display text-2xl mt-1 flex items-center gap-2">
                 {sponsored ? (
                   <>School sponsored <Badge className="bg-accent text-accent-foreground">Free</Badge></>
+                ) : isSubscribed ? (
+                  <>Teacher Monthly <Badge className="bg-accent text-accent-foreground">{SUBSCRIPTION.price}/mo</Badge></>
+                ) : isPaused ? (
+                  <>Teacher Monthly <Badge variant="secondary">Paused</Badge></>
+                ) : isCanceled ? (
+                  <>Teacher Monthly <Badge variant="secondary">Ends {periodEndLabel}</Badge></>
                 ) : inTrial ? (
                   <>Free trial <Badge variant="secondary">{daysLeft} day{daysLeft === 1 ? "" : "s"} left</Badge></>
-                ) : profile.subscription_status === "active" ? (
-                  <>Subscribed</>
                 ) : (
-                  <>Trial ended</>
+                  <>Pay-as-you-go</>
                 )}
               </div>
+              {(isSubscribed || isPaused || isCanceled) && periodEndLabel && (
+                <div className="text-sm text-muted-foreground mt-2">
+                  {isCanceled
+                    ? `Access until ${periodEndLabel}.`
+                    : profile.subscription_cancel_at_period_end
+                    ? `Cancels on ${periodEndLabel}.`
+                    : isPaused
+                    ? "Paused — resume anytime from the billing portal."
+                    : `Next billing: ${periodEndLabel}. ${SUBSCRIPTION.credits.toLocaleString()} credits per cycle, rollover capped at ${SUBSCRIPTION.rolloverCap.toLocaleString()}.`}
+                </div>
+              )}
+              {(isSubscribed || isPaused || isCanceled) && (
+                <Button variant="outline" size="sm" className="mt-3" onClick={openPortal} disabled={busy}>
+                  <Settings className="w-4 h-4" />
+                  Manage subscription
+                </Button>
+              )}
+
               {sponsored && profile.school_email && (
                 <>
                   <div className="text-sm text-muted-foreground mt-2 flex items-center gap-1.5">
