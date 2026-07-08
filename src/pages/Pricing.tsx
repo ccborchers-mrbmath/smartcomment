@@ -94,7 +94,7 @@ export default function Pricing() {
           ))}
         </div>
         <p className="text-xs text-muted-foreground text-center mt-6">
-          Payments are processed by Paddle.com, our Merchant of Record. Prices in USD; local
+          Payments are processed by Paddle.com, our Merchant of Record. Prices in ZAR; local
           taxes added at checkout where applicable. See our{" "}
           <Link to="/legal/refunds" className="underline">refund policy</Link>.
         </p>
