@@ -295,9 +295,15 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          monthly_credit_allowance: number
+          paddle_customer_id: string | null
+          paddle_subscription_id: string | null
           school_email: string | null
           school_email_verified_at: string | null
           school_sponsored: boolean
+          subscription_cancel_at_period_end: boolean
+          subscription_current_period_end: string | null
+          subscription_price_id: string | null
           subscription_status: string
           trial_started_at: string
           updated_at: string
@@ -308,9 +314,15 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          monthly_credit_allowance?: number
+          paddle_customer_id?: string | null
+          paddle_subscription_id?: string | null
           school_email?: string | null
           school_email_verified_at?: string | null
           school_sponsored?: boolean
+          subscription_cancel_at_period_end?: boolean
+          subscription_current_period_end?: string | null
+          subscription_price_id?: string | null
           subscription_status?: string
           trial_started_at?: string
           updated_at?: string
@@ -321,9 +333,15 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          monthly_credit_allowance?: number
+          paddle_customer_id?: string | null
+          paddle_subscription_id?: string | null
           school_email?: string | null
           school_email_verified_at?: string | null
           school_sponsored?: boolean
+          subscription_cancel_at_period_end?: boolean
+          subscription_current_period_end?: string | null
+          subscription_price_id?: string | null
           subscription_status?: string
           trial_started_at?: string
           updated_at?: string
@@ -668,6 +686,15 @@ export type Database = {
           _amount_usd: number
           _credits: number
           _pack_key: string
+          _paddle_transaction_id: string
+          _user_id: string
+        }
+        Returns: undefined
+      }
+      apply_subscription_cycle: {
+        Args: {
+          _allowance: number
+          _credits: number
           _paddle_transaction_id: string
           _user_id: string
         }
