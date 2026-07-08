@@ -76,11 +76,12 @@ export default function Terms() {
 
       <h2>7. Payment, billing and subscriptions</h2>
       <p>
-        Paid features are sold as one-time credit packs. Our order process is conducted by
-        our online reseller <strong>Paddle.com</strong>. Paddle.com is the Merchant of Record
-        for all our orders. Paddle provides all customer service inquiries and handles
-        returns. Payment terms, billing, tax handling, cancellation and refund mechanics are
-        governed by Paddle's{" "}
+        Paid features are offered as a monthly subscription (currently R49 per month for
+        2,000 credits, billed recurringly) and as one-time credit top-ups. Our order process
+        is conducted by our online reseller <strong>Paddle.com</strong>. Paddle.com is the
+        Merchant of Record for all our orders. Paddle provides all customer service inquiries
+        and handles returns. Payment terms, billing, tax handling, cancellation and refund
+        mechanics are governed by Paddle's{" "}
         <a href="https://www.paddle.com/legal/checkout-buyer-terms" target="_blank" rel="noreferrer">
           Buyer Terms
         </a>
