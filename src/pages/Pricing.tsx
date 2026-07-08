@@ -4,7 +4,14 @@ import PublicLayout from "@/components/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Zap } from "lucide-react";
+import { Zap, Repeat } from "lucide-react";
+
+const SUBSCRIPTION = {
+  name: "Teacher Monthly",
+  price: "R49",
+  credits: 2000,
+  rollover: 4000,
+};
 
 const PACKS = [
   { name: "Starter", credits: 500, price: "$5", per: "$0.010 / credit" },
