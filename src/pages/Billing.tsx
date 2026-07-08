@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { CheckCircle2, GraduationCap, Sparkles, Zap } from "lucide-react";
+import { CheckCircle2, GraduationCap, Repeat, Settings, Sparkles, Zap } from "lucide-react";
 import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
+import { getPaddleEnvironment } from "@/lib/paddle";
 
 type Profile = {
   school_email: string | null;
@@ -19,6 +20,12 @@ type Profile = {
   trial_started_at: string;
   credits_balance: number;
   subscription_status: string;
+  paddle_subscription_id: string | null;
+  paddle_customer_id: string | null;
+  subscription_price_id: string | null;
+  subscription_current_period_end: string | null;
+  subscription_cancel_at_period_end: boolean;
+  monthly_credit_allowance: number;
 };
 
 type CreditTx = {
@@ -31,6 +38,14 @@ type CreditTx = {
   created_at: string;
 };
 
+const SUBSCRIPTION = {
+  priceId: "teacher_monthly",
+  name: "Teacher Monthly",
+  price: "R49",
+  credits: 2000,
+  rolloverCap: 4000,
+};
+
 const PACKS = [
   { key: "starter", priceId: "credits_starter_onetime", name: "Starter", credits: 500, price: "$5", per: "$0.010 / credit" },
   { key: "standard", priceId: "credits_standard_onetime", name: "Standard", credits: 2000, price: "$18", per: "$0.009 / credit", popular: true },
@@ -41,6 +56,7 @@ function trialDaysLeft(startIso: string): number {
   const end = new Date(startIso).getTime() + 30 * 24 * 60 * 60 * 1000;
   return Math.max(0, Math.ceil((end - Date.now()) / (24 * 60 * 60 * 1000)));
 }
+
 
 export default function Billing() {
   const { user } = useAuth();
