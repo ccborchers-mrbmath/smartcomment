@@ -9,9 +9,9 @@ import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
 import { toast } from "sonner";
 
 const PACKS = [
-  { key: "starter", priceId: "credits_starter_onetime", name: "Starter", credits: 500, price: "R89" },
-  { key: "standard", priceId: "credits_standard_onetime", name: "Standard", credits: 2000, price: "R329", popular: true },
-  { key: "bulk", priceId: "credits_bulk_onetime", name: "Bulk", credits: 10000, price: "R1,449" },
+  { key: "starter", priceId: "credits_starter_onetime", name: "Starter", credits: 500, price: "R29" },
+  { key: "standard", priceId: "credits_standard_onetime", name: "Standard", credits: 2000, price: "R99", popular: true },
+  { key: "bulk", priceId: "credits_bulk_onetime", name: "Bulk", credits: 10000, price: "R449" },
 ];
 
 type Ctx = { openBuyCredits: (balance?: number) => void };
