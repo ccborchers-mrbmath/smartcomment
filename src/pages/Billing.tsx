@@ -73,7 +73,7 @@ export default function Billing() {
     const [{ data: prof }, { data: txs }] = await Promise.all([
       supabase
         .from("profiles")
-        .select("school_email, school_email_verified_at, school_sponsored, trial_started_at, credits_balance, subscription_status")
+        .select("school_email, school_email_verified_at, school_sponsored, trial_started_at, credits_balance, subscription_status, paddle_subscription_id, paddle_customer_id, subscription_price_id, subscription_current_period_end, subscription_cancel_at_period_end, monthly_credit_allowance")
         .eq("id", user.id)
         .maybeSingle(),
       supabase
@@ -86,6 +86,7 @@ export default function Billing() {
     if (prof) setProfile(prof as Profile);
     if (txs) setTransactions(txs as CreditTx[]);
   };
+
 
   useEffect(() => { load(); }, [user]);
 
