@@ -161,6 +161,39 @@ export default function Billing() {
     }
   };
 
+  const subscribe = async () => {
+    if (!user) return;
+    setPendingPack("subscription");
+    try {
+      await openCheckout({
+        priceId: SUBSCRIPTION.priceId,
+        customerEmail: user.email,
+        customData: { userId: user.id },
+        successUrl: `${window.location.origin}/billing?purchase=success`,
+      });
+    } catch (err: any) {
+      toast.error(err.message ?? "Could not open checkout");
+    } finally {
+      setPendingPack(null);
+    }
+  };
+
+  const openPortal = async () => {
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("paddle-portal-url", {
+        body: { environment: getPaddleEnvironment() },
+      });
+      if (error || !data?.url) throw new Error(error?.message ?? "Could not open portal");
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (err: any) {
+      toast.error(err.message ?? "Could not open portal");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+
   if (!profile) {
     return <AppShell><div className="text-muted-foreground">Loading…</div></AppShell>;
   }
