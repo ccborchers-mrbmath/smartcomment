@@ -80,10 +80,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   <Badge className="bg-accent text-accent-foreground gap-1">
                     <GraduationCap className="w-3 h-3" />School
                   </Badge>
-                ) : status.sub === "active" ? (
+                ) : status.subscribed ? (
                   <Badge variant="secondary" className="gap-1">
-                    <CreditCard className="w-3 h-3" />Pro
+                    <CreditCard className="w-3 h-3" />Subscribed
                   </Badge>
+                ) : status.sub === "paused" ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <CreditCard className="w-3 h-3" />Paused
+                  </Badge>
+
                 ) : status.daysLeft > 0 ? (
                   <Badge variant="secondary" className="gap-1">
                     <Sparkles className="w-3 h-3" />Trial · {status.daysLeft}d
