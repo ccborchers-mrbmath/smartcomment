@@ -298,8 +298,31 @@ export default function Billing() {
           </p>
         </Card>
 
+        {!sponsored && !isSubscribed && !isPaused && !isCanceled && (
+          <Card className="p-6 border-accent">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Repeat className="w-5 h-5 text-accent" />
+                  <h2 className="font-display text-xl">Teacher Monthly</h2>
+                  <Badge className="bg-accent text-accent-foreground">Best value</Badge>
+                </div>
+                <div className="font-display text-3xl mt-2">{SUBSCRIPTION.price}<span className="text-base font-sans text-muted-foreground"> / month</span></div>
+                <ul className="text-sm text-muted-foreground mt-3 space-y-1">
+                  <li>• {SUBSCRIPTION.credits.toLocaleString()} credits every month</li>
+                  <li>• Unused credits roll over, capped at {SUBSCRIPTION.rolloverCap.toLocaleString()}</li>
+                  <li>• Pause or cancel anytime from the billing portal</li>
+                </ul>
+              </div>
+              <Button size="lg" onClick={subscribe} disabled={checkoutLoading && pendingPack === "subscription"}>
+                <Repeat className="w-4 h-4" />
+                {checkoutLoading && pendingPack === "subscription" ? "Opening…" : "Subscribe"}
+              </Button>
+            </div>
+          </Card>
+        )}
 
-        {!sponsored && (
+
           <div>
             <h2 className="font-display text-2xl mb-1">Buy credits</h2>
             <p className="text-muted-foreground mb-4">One-time top-ups. Credits never expire.</p>
