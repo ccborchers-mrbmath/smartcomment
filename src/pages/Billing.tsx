@@ -322,8 +322,9 @@ export default function Billing() {
           </Card>
         )}
 
-
+        {!sponsored && (
           <div>
+
             <h2 className="font-display text-2xl mb-1">Buy credits</h2>
             <p className="text-muted-foreground mb-4">One-time top-ups. Credits never expire.</p>
             <div className="grid sm:grid-cols-3 gap-4">
