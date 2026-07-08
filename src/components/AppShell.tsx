@@ -16,14 +16,14 @@ function trialDaysLeft(startIso: string): number {
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [status, setStatus] = useState<{ sponsored: boolean; daysLeft: number; sub: string } | null>(null);
+  const [status, setStatus] = useState<{ sponsored: boolean; daysLeft: number; sub: string; subscribed: boolean } | null>(null);
   const [isSchoolAdmin, setIsSchoolAdmin] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     supabase
       .from("profiles")
-      .select("school_sponsored, trial_started_at, subscription_status")
+      .select("school_sponsored, trial_started_at, subscription_status, subscription_price_id")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data }) => {
@@ -32,12 +32,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           sponsored: !!data.school_sponsored,
           daysLeft: trialDaysLeft(data.trial_started_at),
           sub: data.subscription_status,
+          subscribed: data.subscription_price_id === "teacher_monthly" &&
+            ["active", "trialing", "past_due"].includes(data.subscription_status),
         });
       });
     supabase.from("school_admins").select("school_id").eq("user_id", user.id).then(({ data }) => {
       setIsSchoolAdmin(!!data?.length);
     });
   }, [user]);
+
 
   const signOut = async () => {
     await supabase.auth.signOut();
