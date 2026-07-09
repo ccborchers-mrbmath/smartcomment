@@ -42,6 +42,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <BuyCreditsProvider>
+            <MaintenanceGate>
             <Routes>
               {/* Public */}
               <Route path="/" element={<SmartRoot />} />
