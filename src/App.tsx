@@ -71,6 +71,7 @@ const App = () => (
               <Route path="/admin/domains" element={<ProtectedRoute><AdminDomains /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </MaintenanceGate>
           </BuyCreditsProvider>
         </AuthProvider>
       </BrowserRouter>
