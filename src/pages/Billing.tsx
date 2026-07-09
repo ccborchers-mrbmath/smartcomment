@@ -47,9 +47,9 @@ const SUBSCRIPTION = {
 };
 
 const PACKS = [
-  { key: "starter", priceId: "credits_starter_onetime", name: "Starter", credits: 500, price: "$5", per: "$0.010 / credit" },
-  { key: "standard", priceId: "credits_standard_onetime", name: "Standard", credits: 2000, price: "$18", per: "$0.009 / credit", popular: true },
-  { key: "bulk", priceId: "credits_bulk_onetime", name: "Bulk", credits: 10000, price: "$80", per: "$0.008 / credit" },
+  { key: "starter", priceId: "credits_starter_onetime", name: "Starter", credits: 500, price: "R29", per: "R0.058 / credit" },
+  { key: "standard", priceId: "credits_standard_onetime", name: "Standard", credits: 2000, price: "R99", per: "R0.050 / credit", popular: true },
+  { key: "bulk", priceId: "credits_bulk_onetime", name: "Bulk", credits: 10000, price: "R449", per: "R0.045 / credit" },
 ];
 
 function trialDaysLeft(startIso: string): number {
@@ -404,7 +404,7 @@ export default function Billing() {
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {new Date(tx.created_at).toLocaleString()}
-                      {tx.amount_usd != null && ` · $${tx.amount_usd.toFixed(2)}`}
+                      {tx.amount_usd != null && tx.reason === "purchase" && ` · R${tx.amount_usd.toFixed(2)}`}
                     </div>
                   </div>
                   <div className={`font-mono ${tx.delta >= 0 ? "text-accent" : "text-muted-foreground"}`}>
