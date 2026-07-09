@@ -415,6 +415,51 @@ export default function Billing() {
             </div>
           </Card>
         )}
+
+        <Card className="p-6 border-destructive/40">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="font-display text-xl mb-1">Delete account</h2>
+              <p className="text-sm text-muted-foreground max-w-lg">
+                Permanently delete your account, classes, students, and history. This
+                also cancels any active subscription. This action can't be undone.
+              </p>
+            </div>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                const phrase = window.prompt(
+                  "This will permanently delete your account and cancel your subscription.\n\nType 'delete my account' to confirm:"
+                );
+                if (!phrase) return;
+                if (phrase.trim().toLowerCase() !== "delete my account") {
+                  toast.error("Confirmation phrase didn't match. Nothing was deleted.");
+                  return;
+                }
+                setBusy(true);
+                try {
+                  const { data, error } = await supabase.functions.invoke("delete-account", {
+                    body: { confirm: "delete my account", environment: getPaddleEnvironment() },
+                  });
+                  if (error || (data && (data as any).error)) {
+                    throw new Error((data as any)?.message ?? error?.message ?? "Delete failed");
+                  }
+                  await supabase.auth.signOut();
+                  toast.success("Your account has been deleted.");
+                  window.location.href = "/";
+                } catch (err: any) {
+                  toast.error(err.message ?? "Could not delete account");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              disabled={busy}
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete my account
+            </Button>
+          </div>
+        </Card>
       </div>
     </AppShell>
   );
