@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Zap, Repeat } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const SUBSCRIPTION = {
   name: "Teacher Monthly",
@@ -20,6 +21,8 @@ const PACKS = [
 ];
 
 export default function Pricing() {
+  const { user } = useAuth();
+  const ctaTarget = user ? "/billing" : "/auth";
   useEffect(() => {
     document.title = "Pricing — SmartComment";
     const desc = "Simple, one-time credit packs. No subscription. Credits never expire.";

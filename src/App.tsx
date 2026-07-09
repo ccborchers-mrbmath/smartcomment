@@ -14,6 +14,7 @@ import Terms from "./pages/legal/Terms";
 import Privacy from "./pages/legal/Privacy";
 import Refund from "./pages/legal/Refund";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import NewClass from "./pages/NewClass";
 import ClassView from "./pages/ClassView";
@@ -49,6 +50,7 @@ const App = () => (
               <Route path="/legal/privacy" element={<Privacy />} />
               <Route path="/legal/refunds" element={<Refund />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/verify-school" element={<VerifySchool />} />
 
               {/* Authenticated app */}
