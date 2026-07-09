@@ -717,6 +717,17 @@ export type Database = {
       is_school_domain_allowed: { Args: { _email: string }; Returns: boolean }
       is_super_admin: { Args: { _uid: string }; Returns: boolean }
       school_for_user: { Args: { _uid: string }; Returns: string }
+      spend_credits: {
+        Args: {
+          _amount_usd: number
+          _credits: number
+          _function_name: string
+          _metadata: Json
+          _usage_event_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       input_type: "voice" | "handwriting" | "typed" | "file"
