@@ -66,7 +66,7 @@ export default function Pricing() {
               </ul>
             </div>
             <Button size="lg" asChild>
-              <Link to="/auth"><Repeat className="w-4 h-4" />Subscribe</Link>
+              <Link to={ctaTarget}><Repeat className="w-4 h-4" />Subscribe</Link>
             </Button>
           </div>
         </Card>
@@ -91,7 +91,7 @@ export default function Pricing() {
                 <div className="text-xs text-muted-foreground">{p.per}</div>
               </div>
               <Button className="mt-6" asChild>
-                <Link to="/auth"><Zap className="w-4 h-4" />Get started</Link>
+                <Link to={ctaTarget}><Zap className="w-4 h-4" />Get started</Link>
               </Button>
             </Card>
           ))}
