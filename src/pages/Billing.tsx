@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { CheckCircle2, GraduationCap, Repeat, Settings, Sparkles, Zap } from "lucide-react";
+import { CheckCircle2, GraduationCap, Repeat, Settings, Sparkles, Trash2, Zap } from "lucide-react";
 import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
 import { getPaddleEnvironment } from "@/lib/paddle";
 

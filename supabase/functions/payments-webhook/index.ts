@@ -139,9 +139,29 @@ async function handleSubscriptionCanceled(data: any) {
   await getSupabase().from('profiles').update({
     subscription_status: 'canceled',
     subscription_cancel_at_period_end: false,
+    // Preserve/record the end of paid access so Billing can show the
+    // grace period even if subscription.updated didn't fire first.
+    subscription_current_period_end:
+      data.currentBillingPeriod?.endsAt ?? data.canceledAt ?? new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq('paddle_subscription_id', data.id);
   console.log('Subscription canceled', data.id);
+}
+
+async function handleTransactionPaymentFailed(data: any) {
+  // A renewal or checkout payment failed. Flag the subscription as past_due
+  // so the UI can surface a dunning banner. Paddle will keep retrying and
+  // eventually fire subscription.updated (or canceled) with the final state.
+  const subId = data.subscriptionId;
+  if (!subId) {
+    console.log('transaction.payment_failed: no subscriptionId', data.id);
+    return;
+  }
+  await getSupabase().from('profiles').update({
+    subscription_status: 'past_due',
+    updated_at: new Date().toISOString(),
+  }).eq('paddle_subscription_id', subId);
+  console.log('Payment failed for subscription', subId);
 }
 
 async function handleWebhook(req: Request, env: PaddleEnv) {
@@ -149,6 +169,9 @@ async function handleWebhook(req: Request, env: PaddleEnv) {
   switch (event.eventType) {
     case EventName.TransactionCompleted:
       await handleTransactionCompleted(event.data);
+      break;
+    case EventName.TransactionPaymentFailed:
+      await handleTransactionPaymentFailed(event.data);
       break;
     case EventName.SubscriptionCreated:
       await handleSubscriptionCreated(event.data);
