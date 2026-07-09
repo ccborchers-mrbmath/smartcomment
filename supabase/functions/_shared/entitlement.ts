@@ -1,5 +1,6 @@
 // Shared entitlement gate for AI edge functions.
-// Returns null when the user can use AI, or a 402 Response otherwise.
+// Returns { ok: true, sponsored, balance } when the user can use AI,
+// or a Response (402/500) that the caller must return as-is.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -18,16 +19,10 @@ const corsHeaders = {
 };
 
 export async function checkEntitlement(userId: string): Promise<EntitlementOk | Response> {
-  // TEMPORARY: AI usage restrictions disabled for all users while email
-  // verification / school sponsorship flow is being reworked. Re-enable by
-  // restoring the profile lookup + balance/sponsorship/subscription gate.
-  return { ok: true, sponsored: true, balance: 0 };
-
-  // eslint-disable-next-line no-unreachable
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
   const { data, error } = await admin
     .from("profiles")
-    .select("credits_balance, school_sponsored, subscription_status")
+    .select("credits_balance, school_sponsored")
     .eq("id", userId)
     .maybeSingle();
   if (error || !data) {
@@ -38,8 +33,7 @@ export async function checkEntitlement(userId: string): Promise<EntitlementOk | 
   }
   const sponsored = !!data.school_sponsored;
   const balance = data.credits_balance ?? 0;
-  const active = data.subscription_status === "active";
-  if (sponsored || active || balance > 0) {
+  if (sponsored || balance > 0) {
     return { ok: true, sponsored, balance };
   }
   return new Response(

@@ -83,23 +83,22 @@ export async function logUsage(args: LogUsageArgs): Promise<void> {
     // Sponsored users: stop here. No ledger row, no balance decrement.
     if (sponsored) return;
 
-    // Mirror spend to the credit ledger and deduct from the user's balance
-    // so the Billing activity feed and balance stay in sync with AI usage.
+    // Atomically decrement the balance and record the spend in one statement
+    // via spend_credits(). Prevents race conditions on concurrent AI calls.
     if (credits > 0) {
-      const { error: txErr } = await admin.from("credit_transactions").insert({
-        user_id: args.userId,
-        delta: -credits,
-        reason: "spend",
-        function_name: args.functionName,
-        usage_event_id: inserted?.id ?? null,
-        amount_usd: costUsd,
-        metadata: { model: args.model, ...(args.metadata ?? {}) },
+      const { data: ok, error: rpcErr } = await admin.rpc("spend_credits", {
+        _user_id: args.userId,
+        _credits: credits,
+        _function_name: args.functionName,
+        _usage_event_id: inserted?.id ?? null,
+        _amount_usd: costUsd,
+        _metadata: { model: args.model, ...(args.metadata ?? {}) },
       });
-      if (txErr) {
-        console.error("logUsage ledger error", txErr);
-      } else {
-        const next = Math.max(0, (prof?.credits_balance ?? 0) - credits);
-        await admin.from("profiles").update({ credits_balance: next, updated_at: new Date().toISOString() }).eq("id", args.userId);
+      if (rpcErr) {
+        console.error("logUsage spend_credits error", rpcErr);
+      } else if (ok === false) {
+        // Balance changed between entitlement check and spend — user ran out.
+        console.warn("spend_credits: insufficient balance at spend time", args.userId, credits);
       }
     }
 

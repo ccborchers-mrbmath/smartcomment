@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { CheckCircle2, GraduationCap, Repeat, Settings, Sparkles, Zap } from "lucide-react";
+import { CheckCircle2, GraduationCap, Repeat, Settings, Sparkles, Trash2, Zap } from "lucide-react";
 import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
 import { getPaddleEnvironment } from "@/lib/paddle";
 
@@ -47,9 +47,9 @@ const SUBSCRIPTION = {
 };
 
 const PACKS = [
-  { key: "starter", priceId: "credits_starter_onetime", name: "Starter", credits: 500, price: "$5", per: "$0.010 / credit" },
-  { key: "standard", priceId: "credits_standard_onetime", name: "Standard", credits: 2000, price: "$18", per: "$0.009 / credit", popular: true },
-  { key: "bulk", priceId: "credits_bulk_onetime", name: "Bulk", credits: 10000, price: "$80", per: "$0.008 / credit" },
+  { key: "starter", priceId: "credits_starter_onetime", name: "Starter", credits: 500, price: "R29", per: "R0.058 / credit" },
+  { key: "standard", priceId: "credits_standard_onetime", name: "Standard", credits: 2000, price: "R99", per: "R0.050 / credit", popular: true },
+  { key: "bulk", priceId: "credits_bulk_onetime", name: "Bulk", credits: 10000, price: "R449", per: "R0.045 / credit" },
 ];
 
 function trialDaysLeft(startIso: string): number {
@@ -404,7 +404,7 @@ export default function Billing() {
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {new Date(tx.created_at).toLocaleString()}
-                      {tx.amount_usd != null && ` · $${tx.amount_usd.toFixed(2)}`}
+                      {tx.amount_usd != null && tx.reason === "purchase" && ` · R${tx.amount_usd.toFixed(2)}`}
                     </div>
                   </div>
                   <div className={`font-mono ${tx.delta >= 0 ? "text-accent" : "text-muted-foreground"}`}>
@@ -415,6 +415,51 @@ export default function Billing() {
             </div>
           </Card>
         )}
+
+        <Card className="p-6 border-destructive/40">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="font-display text-xl mb-1">Delete account</h2>
+              <p className="text-sm text-muted-foreground max-w-lg">
+                Permanently delete your account, classes, students, and history. This
+                also cancels any active subscription. This action can't be undone.
+              </p>
+            </div>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                const phrase = window.prompt(
+                  "This will permanently delete your account and cancel your subscription.\n\nType 'delete my account' to confirm:"
+                );
+                if (!phrase) return;
+                if (phrase.trim().toLowerCase() !== "delete my account") {
+                  toast.error("Confirmation phrase didn't match. Nothing was deleted.");
+                  return;
+                }
+                setBusy(true);
+                try {
+                  const { data, error } = await supabase.functions.invoke("delete-account", {
+                    body: { confirm: "delete my account", environment: getPaddleEnvironment() },
+                  });
+                  if (error || (data && (data as any).error)) {
+                    throw new Error((data as any)?.message ?? error?.message ?? "Delete failed");
+                  }
+                  await supabase.auth.signOut();
+                  toast.success("Your account has been deleted.");
+                  window.location.href = "/";
+                } catch (err: any) {
+                  toast.error(err.message ?? "Could not delete account");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              disabled={busy}
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete my account
+            </Button>
+          </div>
+        </Card>
       </div>
     </AppShell>
   );

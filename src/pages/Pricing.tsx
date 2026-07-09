@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Zap, Repeat } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const SUBSCRIPTION = {
   name: "Teacher Monthly",
@@ -20,6 +21,8 @@ const PACKS = [
 ];
 
 export default function Pricing() {
+  const { user } = useAuth();
+  const ctaTarget = user ? "/billing" : "/auth";
   useEffect(() => {
     document.title = "Pricing — SmartComment";
     const desc = "Simple, one-time credit packs. No subscription. Credits never expire.";
@@ -63,7 +66,7 @@ export default function Pricing() {
               </ul>
             </div>
             <Button size="lg" asChild>
-              <Link to="/auth"><Repeat className="w-4 h-4" />Subscribe</Link>
+              <Link to={ctaTarget}><Repeat className="w-4 h-4" />Subscribe</Link>
             </Button>
           </div>
         </Card>
@@ -88,7 +91,7 @@ export default function Pricing() {
                 <div className="text-xs text-muted-foreground">{p.per}</div>
               </div>
               <Button className="mt-6" asChild>
-                <Link to="/auth"><Zap className="w-4 h-4" />Get started</Link>
+                <Link to={ctaTarget}><Zap className="w-4 h-4" />Get started</Link>
               </Button>
             </Card>
           ))}
