@@ -18,6 +18,10 @@ export const MODEL_PRICING: Record<string, { inUsdPerM?: number; outUsdPerM?: nu
   "openai/gpt-5":              { inUsdPerM: 5.00,  outUsdPerM: 15.00 },
   "openai/gpt-5-mini":         { inUsdPerM: 0.50,  outUsdPerM: 2.00 },
   "openai/gpt-5-nano":         { inUsdPerM: 0.10,  outUsdPerM: 0.40 },
+  // Flat per-call estimate for a typical short voice note (~1 minute).
+  // OpenAI bills audio transcription differently from chat token pricing —
+  // tune this against actual OpenAI invoice data once real volume comes in.
+  "openai/gpt-4o-transcribe":  { flatUsdPerCall: 0.01 },
 };
 
 // Credit cost (what a paying user would burn). Tunable. 1 credit ≈ $0.001 baseline.
@@ -33,6 +37,16 @@ export function estimateCostFromUsage(model: string, usage: { prompt_tokens?: nu
   const outTok = usage?.completion_tokens ?? 0;
   const cost = (inTok / 1_000_000) * (p.inUsdPerM ?? 0) + (outTok / 1_000_000) * (p.outUsdPerM ?? 0);
   return Math.round(cost * 1_000_000) / 1_000_000;
+}
+
+// Gemini's direct API returns usageMetadata with different field names
+// (promptTokenCount / candidatesTokenCount) than the OpenAI-style shape
+// logUsage/estimateCostFromUsage expect. Translate before logging.
+export function geminiUsage(usageMetadata: { promptTokenCount?: number; candidatesTokenCount?: number } | undefined | null) {
+  return {
+    prompt_tokens: usageMetadata?.promptTokenCount ?? 0,
+    completion_tokens: usageMetadata?.candidatesTokenCount ?? 0,
+  };
 }
 
 export interface LogUsageArgs {
