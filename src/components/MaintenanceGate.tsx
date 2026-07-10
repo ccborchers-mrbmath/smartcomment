@@ -9,7 +9,7 @@ import { Sparkles, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 const OWNER_EMAIL = "ccborchers@gmail.com";
-const ALLOWED_EMAILS = [OWNER_EMAIL, "joyfullhart@gmail.com"];
+const ALLOWED_EMAILS = [OWNER_EMAIL, "joyfullhart@gmail.com", "joyfullhart@googlemail.com"];
 
 function isAllowedEmail(email?: string | null) {
   return !!email && ALLOWED_EMAILS.includes(email.toLowerCase());
