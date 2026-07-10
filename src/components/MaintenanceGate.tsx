@@ -42,7 +42,7 @@ export default function MaintenanceGate({ children }: { children: React.ReactNod
 
   const handleOwnerLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.trim().toLowerCase() !== OWNER_EMAIL) {
+    if (!isAllowedEmail(email.trim())) {
       toast.error("This app is in maintenance mode.");
       return;
     }
