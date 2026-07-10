@@ -9,6 +9,11 @@ import { Sparkles, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 const OWNER_EMAIL = "ccborchers@gmail.com";
+const ALLOWED_EMAILS = [OWNER_EMAIL, "joyfullhart@gmail.com"];
+
+function isAllowedEmail(email?: string | null) {
+  return !!email && ALLOWED_EMAILS.includes(email.toLowerCase());
+}
 
 export default function MaintenanceGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -25,8 +30,8 @@ export default function MaintenanceGate({ children }: { children: React.ReactNod
     );
   }
 
-  // Owner gets full access
-  if (user && user.email?.toLowerCase() === OWNER_EMAIL) {
+  // Owner / test staff get full access
+  if (user && isAllowedEmail(user.email)) {
     return <>{children}</>;
   }
 
