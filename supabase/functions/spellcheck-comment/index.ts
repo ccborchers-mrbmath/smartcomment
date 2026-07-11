@@ -36,7 +36,7 @@ CRITICAL: ${studentName ? `The student's name is "${studentName}". This is the A
 
 Return ONLY the corrected text, with no preamble, no explanation, no quotes, and no markdown.`;
 
-    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent", {
       method: "POST",
       headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -52,7 +52,7 @@ Return ONLY the corrected text, with no preamble, no explanation, no quotes, and
     }
     const data = await res.json();
     const corrected = (data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "").trim();
-    await logUsage({ userId: user.id, functionName: "spellcheck-comment", model: "google/gemini-2.5-flash", units: 1, usage: geminiUsage(data.usageMetadata) });
+    await logUsage({ userId: user.id, functionName: "spellcheck-comment", model: "google/gemini-3-flash-preview", units: 1, usage: geminiUsage(data.usageMetadata) });
     return new Response(JSON.stringify({ text: corrected }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error(e);

@@ -106,7 +106,7 @@ ${selection}
 
 Return only the replacement for the selected text.`;
 
-    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent", {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent", {
       method: "POST",
       headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -131,7 +131,7 @@ Return only the replacement for the selected text.`;
     const data = await res.json();
     const raw = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
     const parsed = raw ? JSON.parse(raw) : { text: "" };
-    await logUsage({ userId: user.id, functionName: "rewrite-selection", model: "google/gemini-2.5-pro", units: 1, usage: geminiUsage(data.usageMetadata) });
+    await logUsage({ userId: user.id, functionName: "rewrite-selection", model: "google/gemini-3.1-pro-preview", units: 1, usage: geminiUsage(data.usageMetadata) });
     return new Response(JSON.stringify({ text: parsed.text ?? "" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error(e);

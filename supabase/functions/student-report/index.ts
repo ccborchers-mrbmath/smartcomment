@@ -48,7 +48,7 @@ serve(async (req) => {
 
     let systemPrompt = "";
     let userPrompt = "";
-    let model = "google/gemini-2.5-pro";
+    let model = "google/gemini-3.1-pro-preview";
 
     if (reportMode === "synthesis") {
       // Gather everything
@@ -162,7 +162,7 @@ RULES:
       userPrompt = `Here is the comprehensive student report:\n\n${synthesis}\n\nProduce the Support & Intervention Analysis now.`;
     }
 
-    const geminiModelId = model === "google/gemini-2.5-pro" ? "gemini-2.5-pro" : "gemini-2.5-flash";
+    const geminiModelId = model === "google/gemini-3.1-pro-preview" ? "gemini-3.1-pro-preview" : "gemini-3-flash-preview";
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModelId}:generateContent`, {
       method: "POST",
       headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
