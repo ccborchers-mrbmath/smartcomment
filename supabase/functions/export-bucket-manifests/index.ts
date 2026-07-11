@@ -54,14 +54,12 @@ async function signInBatches(bucket: string, paths: string[]) {
     if (error) throw new Error(`sign ${bucket} @${i}: ${error.message}`);
     for (const row of data ?? []) {
       if (row.error || !row.signedUrl) throw new Error(`sign row ${row.path}: ${row.error}`);
-      entries.push({
-        path: row.path!,
-        signedUrl: `${SUPABASE_URL}/storage/v1${row.signedUrl.startsWith("/") ? row.signedUrl : "/" + row.signedUrl}`.replace(
-          `${SUPABASE_URL}/storage/v1/storage/v1`,
-          `${SUPABASE_URL}/storage/v1`,
-        ),
-      });
+      const url = row.signedUrl.startsWith("http")
+        ? row.signedUrl
+        : `${SUPABASE_URL}/storage/v1${row.signedUrl.startsWith("/") ? "" : "/"}${row.signedUrl}`;
+      entries.push({ path: row.path!, signedUrl: url });
     }
+
   }
   return entries;
 }
