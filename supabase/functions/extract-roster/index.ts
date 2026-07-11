@@ -34,7 +34,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "No input provided" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const geminiModelId = "gemini-2.5-flash";
+    const geminiModelId = "gemini-3-flash-preview";
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModelId}:generateContent`, {
       method: "POST",
       headers: { "x-goog-api-key": GEMINI_API_KEY!, "Content-Type": "application/json" },
@@ -60,7 +60,7 @@ serve(async (req) => {
     const data = await res.json();
     const raw = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
     const parsed = raw ? JSON.parse(raw) : { names: [] };
-    if (userId) await logUsage({ userId, functionName: "extract-roster", model: "google/gemini-2.5-flash", units: parsed.names?.length ?? 0, usage: geminiUsage(data.usageMetadata) });
+    if (userId) await logUsage({ userId, functionName: "extract-roster", model: "google/gemini-3-flash-preview", units: parsed.names?.length ?? 0, usage: geminiUsage(data.usageMetadata) });
     return new Response(JSON.stringify(parsed), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error(e);

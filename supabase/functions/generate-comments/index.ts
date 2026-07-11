@@ -214,7 +214,7 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
 
     const callBatch = async (batch: any[]): Promise<{ comments: { student_id: string; text: string }[]; error?: { status: number; message: string } }> => {
       const studentBlocks = batch.map(buildBlock).join("\n\n========\n\n");
-      const doFetch = () => fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent", {
+      const doFetch = () => fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent", {
         method: "POST",
         headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -261,7 +261,7 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
       await logUsage({
         userId: user.id,
         functionName: "generate-comments",
-        model: "google/gemini-2.5-pro",
+        model: "google/gemini-3.1-pro-preview",
         units: parsed.comments?.length ?? 0,
         usage: geminiUsage(data.usageMetadata),
         metadata: { batch_size: batch.length },
@@ -282,7 +282,7 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
           teacher_id: user.id,
           text: c.text,
           version: nextVersion,
-          model: "google/gemini-2.5-pro",
+          model: "google/gemini-3.1-pro-preview",
         });
       }
       return { comments: parsed.comments ?? [] };

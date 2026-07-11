@@ -12,9 +12,17 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // charges — update when gateway pricing changes. For invoicing purposes,
 // estimates here drive `cost_usd_estimate` on each usage event.
 export const MODEL_PRICING: Record<string, { inUsdPerM?: number; outUsdPerM?: number; flatUsdPerCall?: number }> = {
+  // gemini-2.5-* are retired (no longer available to new API keys as of
+  // July 2026) — kept here only so historical usage_events rows with these
+  // model names still resolve to a cost estimate.
   "google/gemini-2.5-pro":     { inUsdPerM: 1.25,  outUsdPerM: 10.00 },
   "google/gemini-2.5-flash":   { inUsdPerM: 0.30,  outUsdPerM: 2.50 },
   "google/gemini-2.5-flash-lite": { inUsdPerM: 0.10, outUsdPerM: 0.40 },
+  // Current models (verified live against the account's own API key,
+  // July 2026) — pricing is an estimate, tune against actual Google
+  // Cloud billing once real volume comes in.
+  "google/gemini-3.1-pro-preview":  { inUsdPerM: 2.00,  outUsdPerM: 12.00 },
+  "google/gemini-3-flash-preview":  { inUsdPerM: 0.30,  outUsdPerM: 2.50 },
   "openai/gpt-5":              { inUsdPerM: 5.00,  outUsdPerM: 15.00 },
   "openai/gpt-5-mini":         { inUsdPerM: 0.50,  outUsdPerM: 2.00 },
   "openai/gpt-5-nano":         { inUsdPerM: 0.10,  outUsdPerM: 0.40 },

@@ -70,7 +70,7 @@ serve(async (req) => {
       ...images.map((img) => ({ inline_data: { mime_type: img.mimeType, data: img.base64 } })),
     ];
 
-    const geminiModelId = "gemini-2.5-flash";
+    const geminiModelId = "gemini-3-flash-preview";
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModelId}:generateContent`, {
       method: "POST",
       headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
@@ -88,7 +88,7 @@ serve(async (req) => {
     }
     const data = await res.json();
     const text = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
-    if (userId) await logUsage({ userId, functionName: "ocr-handwriting", model: "google/gemini-2.5-flash", units: images.length, usage: geminiUsage(data.usageMetadata), metadata: { pages: images.length } });
+    if (userId) await logUsage({ userId, functionName: "ocr-handwriting", model: "google/gemini-3-flash-preview", units: images.length, usage: geminiUsage(data.usageMetadata), metadata: { pages: images.length } });
     return new Response(JSON.stringify({ text }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "unknown" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
