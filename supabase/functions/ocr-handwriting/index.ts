@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { logUsage } from "../_shared/usage.ts";
+import { logUsage, geminiUsage } from "../_shared/usage.ts";
 import { checkEntitlement } from "../_shared/entitlement.ts";
 
 const corsHeaders = {
@@ -8,7 +8,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -26,7 +26,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY missing");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY missing");
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { headers: { Authorization: authHeader } } });
@@ -63,31 +63,32 @@ serve(async (req) => {
       ? "You transcribe handwritten teacher notes verbatim. The user will provide MULTIPLE photos that are CONSECUTIVE PAGES of the SAME comment (a single comment that runs across multiple pages of a bound book). Concatenate the transcription in order, preserving line breaks. Output ONLY the transcribed text — no commentary, no page markers, no headers."
       : "You transcribe handwritten teacher notes verbatim. Output only the transcribed text — no commentary, no formatting changes beyond preserving line breaks.";
 
-    const userContent: any[] = [
-      { type: "text", text: images.length > 1
+    const userParts: any[] = [
+      { text: images.length > 1
         ? `Transcribe these ${images.length} consecutive pages of one handwritten comment, in order.`
         : "Transcribe these handwritten notes." },
-      ...images.map((img) => ({ type: "image_url", image_url: { url: `data:${img.mimeType};base64,${img.base64}` } })),
+      ...images.map((img) => ({ inline_data: { mime_type: img.mimeType, data: img.base64 } })),
     ];
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const geminiModelId = "gemini-2.5-flash";
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModelId}:generateContent`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userContent },
-        ],
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: userParts }],
       }),
     });
 
     if (res.status === 429) return new Response(JSON.stringify({ error: "Rate limit reached." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    if (res.status === 402) return new Response(JSON.stringify({ error: "AI credits exhausted." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    if (!res.ok) throw new Error(`AI gateway: ${res.status}`);
+    if (!res.ok) {
+      const t = await res.text();
+      console.error("gemini ocr error", res.status, t);
+      throw new Error(`Gemini API: ${res.status}`);
+    }
     const data = await res.json();
-    const text = data.choices?.[0]?.message?.content ?? "";
-    if (userId) await logUsage({ userId, functionName: "ocr-handwriting", model: "google/gemini-2.5-flash", units: images.length, usage: data.usage, metadata: { pages: images.length } });
+    const text = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
+    if (userId) await logUsage({ userId, functionName: "ocr-handwriting", model: "google/gemini-2.5-flash", units: images.length, usage: geminiUsage(data.usageMetadata), metadata: { pages: images.length } });
     return new Response(JSON.stringify({ text }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "unknown" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });

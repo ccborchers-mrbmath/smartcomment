@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { logUsage } from "../_shared/usage.ts";
+import { logUsage, geminiUsage } from "../_shared/usage.ts";
 import { checkEntitlement } from "../_shared/entitlement.ts";
 
 const corsHeaders = {
@@ -8,7 +8,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
@@ -214,42 +214,32 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
 
     const callBatch = async (batch: any[]): Promise<{ comments: { student_id: string; text: string }[]; error?: { status: number; message: string } }> => {
       const studentBlocks = batch.map(buildBlock).join("\n\n========\n\n");
-      const doFetch = () => fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const doFetch = () => fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent", {
         method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: `Generate one report comment for each of the following students.\n\n${studentBlocks}` },
-          ],
-          tools: [{
-            type: "function",
-            function: {
-              name: "return_comments",
-              description: "Return the generated comments per student.",
-              parameters: {
-                type: "object",
-                properties: {
-                  comments: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        student_id: { type: "string" },
-                        text: { type: "string" },
-                      },
-                      required: ["student_id", "text"],
-                      additionalProperties: false,
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: "user", parts: [{ text: `Generate one report comment for each of the following students.\n\n${studentBlocks}` }] }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "object",
+              properties: {
+                comments: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      student_id: { type: "string" },
+                      text: { type: "string" },
                     },
+                    required: ["student_id", "text"],
                   },
                 },
-                required: ["comments"],
-                additionalProperties: false,
               },
+              required: ["comments"],
             },
-          }],
-          tool_choice: { type: "function", function: { name: "return_comments" } },
+          },
         }),
       });
 
@@ -259,22 +249,21 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
         res = await doFetch();
       }
       if (res.status === 429) return { comments: [], error: { status: 429, message: "Rate limit reached. Try again shortly." } };
-      if (res.status === 402) return { comments: [], error: { status: 402, message: "AI credits exhausted. Add credits in workspace settings." } };
       if (!res.ok) {
         const t = await res.text();
-        console.error(`AI gateway batch error ${res.status}: ${t}`);
-        return { comments: [], error: { status: res.status, message: `AI gateway: ${res.status}` } };
+        console.error(`Gemini API batch error ${res.status}: ${t}`);
+        return { comments: [], error: { status: res.status, message: `Gemini API: ${res.status}` } };
       }
       const data = await res.json();
-      const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-      const parsed = args ? JSON.parse(args) : { comments: [] };
+      const raw = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
+      const parsed = raw ? JSON.parse(raw) : { comments: [] };
 
       await logUsage({
         userId: user.id,
         functionName: "generate-comments",
         model: "google/gemini-2.5-pro",
         units: parsed.comments?.length ?? 0,
-        usage: data.usage,
+        usage: geminiUsage(data.usageMetadata),
         metadata: { batch_size: batch.length },
       });
 
@@ -309,17 +298,14 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
 
     const allComments: { student_id: string; text: string }[] = [];
     let firstError: { status: number; message: string } | null = null;
-    let aborted = false;
 
     for (let i = 0; i < batches.length; i += CONCURRENCY) {
-      if (aborted) break;
       const wave = batches.slice(i, i + CONCURRENCY);
       const results = await Promise.all(wave.map((b) => callBatch(b)));
       for (const r of results) {
         if (r.comments.length) allComments.push(...r.comments);
         if (r.error && !firstError) {
           firstError = r.error;
-          if (r.error.status === 402) aborted = true;
         }
       }
     }
