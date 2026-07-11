@@ -43,11 +43,24 @@ serve(async (req) => {
     form.append("file", new Blob([audioBytes], { type: audioMime }), `voice-note.${extension}`);
     form.append("model", "gpt-4o-transcribe");
 
-    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
-      body: form,
-    });
+    console.log(`transcribe-audio: sending ${audioBytes.length} bytes (${audioMime}) to OpenAI`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25_000);
+    let res: Response;
+    try {
+      res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+        body: form,
+        signal: controller.signal,
+      });
+    } catch (fetchErr) {
+      console.error("transcribe-audio: fetch to OpenAI failed or timed out", fetchErr);
+      throw new Error("Transcription request timed out. Please try again.");
+    } finally {
+      clearTimeout(timeout);
+    }
+    console.log(`transcribe-audio: OpenAI responded with status ${res.status}`);
 
     if (res.status === 429) return new Response(JSON.stringify({ error: "Rate limit reached." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     if (!res.ok) {
