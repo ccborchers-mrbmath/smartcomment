@@ -3,13 +3,11 @@ import { useSearchParams } from "react-router-dom";
 import AppShell from "@/components/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { CheckCircle2, GraduationCap, Repeat, Settings, Sparkles, Trash2, Zap } from "lucide-react";
+import { CheckCircle2, Repeat, Settings, Sparkles, Trash2, Zap } from "lucide-react";
 import { usePaddleCheckout } from "@/hooks/usePaddleCheckout";
 import { getPaddleEnvironment } from "@/lib/paddle";
 
@@ -62,7 +60,6 @@ export default function Billing() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [transactions, setTransactions] = useState<CreditTx[]>([]);
-  const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [params, setParams] = useSearchParams();
   const { openCheckout, loading: checkoutLoading } = usePaddleCheckout();
@@ -110,39 +107,6 @@ export default function Billing() {
     setParams(params, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const sendVerification = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("request-school-verification", {
-        body: { email: email.trim().toLowerCase(), redirectBase: window.location.origin },
-      });
-      // supabase-js raises `error` for any non-2xx status. The real reason is in
-      // the response body — read it from error.context before falling back.
-      let payload: any = data;
-      if (error) {
-        try {
-          payload = await (error as any).context?.json?.();
-        } catch { /* ignore */ }
-      }
-      if (payload?.error) {
-        toast.error(payload.message ?? payload.error);
-      } else if (error) {
-        toast.error(error.message ?? "Could not send verification");
-      } else if (payload?.devLink) {
-        toast.success("Email service not configured — opening verification link directly.");
-        window.location.href = payload.devLink;
-      } else {
-        toast.success(`Check ${email} for a verification link.`);
-        setEmail("");
-      }
-    } catch (err: any) {
-      toast.error(err.message ?? "Could not send verification");
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const buyPack = async (pack: typeof PACKS[number]) => {
     if (!user) return;
@@ -353,39 +317,6 @@ export default function Billing() {
               ))}
             </div>
           </div>
-        )}
-
-        {!sponsored && (
-          <Card className="p-6">
-            <div className="flex items-center gap-2 mb-2">
-              <GraduationCap className="w-5 h-5 text-accent" />
-              <h2 className="font-display text-xl">Teacher at a partner school?</h2>
-            </div>
-            <p className="text-muted-foreground mb-4">
-              Verify your school email and your account is free — forever. You'll keep signing in
-              with {user?.email}; this just links your school for billing purposes.
-            </p>
-            <form onSubmit={sendVerification} className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <Label htmlFor="school-email" className="sr-only">School email</Label>
-                <Input
-                  id="school-email"
-                  type="email"
-                  placeholder="jane@yourschool.edu"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" disabled={busy}>
-                {busy ? "Sending…" : "Send verification link"}
-              </Button>
-            </form>
-            <p className="text-xs text-muted-foreground mt-3">
-              Don't see your school?{" "}
-              <a href="/school" className="underline">Ask your admin to claim the domain.</a>
-            </p>
-          </Card>
         )}
 
         {transactions.length > 0 && (
