@@ -40,8 +40,17 @@ export default function Pricing() {
       <section className="max-w-4xl mx-auto px-6 pt-16 pb-10 text-center">
         <h1 className="font-display text-5xl mb-4">Pricing that fits how you teach</h1>
         <p className="text-muted-foreground text-lg">
-          Start free with 200 credits. Subscribe for a monthly allowance, or top up
-          with a one-time pack whenever you need more.
+          New accounts get 200 free credits to try SmartComment — no time limit, use them
+          whenever you're ready. Once they're used up, subscribe for a monthly allowance
+          or top up with a one-time pack whenever you need more.
+        </p>
+      </section>
+
+      <section className="max-w-3xl mx-auto px-6 pb-4 text-center">
+        <p className="text-xs text-muted-foreground">
+          Payments are processed by Paddle.com, our Merchant of Record. Prices in ZAR;
+          taxes may apply and will be calculated at checkout. See our{" "}
+          <Link to="/legal/refunds" className="underline">refund policy</Link>.
         </p>
       </section>
 
@@ -77,7 +86,7 @@ export default function Pricing() {
       </section>
 
 
-      <section className="max-w-5xl mx-auto px-6 pb-12">
+      <section className="max-w-5xl mx-auto px-6 pb-20">
         <div className="grid sm:grid-cols-3 gap-4">
           {PACKS.map((p) => (
             <Card key={p.name} className={`p-6 flex flex-col ${p.popular ? "border-accent" : ""}`}>
@@ -96,21 +105,6 @@ export default function Pricing() {
             </Card>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground text-center mt-6">
-          Payments are processed by Paddle.com, our Merchant of Record. Prices in ZAR; local
-          taxes added at checkout where applicable. See our{" "}
-          <Link to="/legal/refunds" className="underline">refund policy</Link>.
-        </p>
-      </section>
-
-      <section className="max-w-3xl mx-auto px-6 pb-20">
-        <Card className="p-6">
-          <div className="font-display text-2xl mb-2">Teacher at a partner school?</div>
-          <p className="text-muted-foreground">
-            If your school has joined SmartComment, verify your school email after signing up
-            and your account is free — forever. No credits used, no charges.
-          </p>
-        </Card>
       </section>
     </PublicLayout>
   );
