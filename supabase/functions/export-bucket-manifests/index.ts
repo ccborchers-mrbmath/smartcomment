@@ -84,7 +84,13 @@ serve(async (req) => {
       }
     }
 
-    const buckets = ["audio-notes", "handwriting"];
+    let buckets: string[] = ["audio-notes", "handwriting"];
+    try {
+      const body = await req.json();
+      if (Array.isArray(body?.buckets) && body.buckets.length > 0) {
+        buckets = body.buckets.map((s: unknown) => String(s));
+      }
+    } catch { /* no body */ }
     const summary: Record<string, unknown> = {};
 
     for (const bucket of buckets) {
