@@ -1,4 +1,4 @@
-import { gatewayFetch, type PaddleEnv } from '../_shared/paddle.ts';
+import { paddleFetch, type PaddleEnv } from '../_shared/paddle.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const res = await gatewayFetch(environment as PaddleEnv, `/prices?external_id=${encodeURIComponent(priceId)}`);
+    const res = await paddleFetch(environment as PaddleEnv, `/prices?external_id=${encodeURIComponent(priceId)}`);
     const data = await res.json();
     if (!data.data?.length) {
       return new Response(JSON.stringify({ error: 'Price not found' }), {
