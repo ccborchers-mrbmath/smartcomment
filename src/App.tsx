@@ -6,7 +6,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
 import { BuyCreditsProvider } from "@/components/BuyCreditsDialog";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import MaintenanceGate from "@/components/MaintenanceGate";
 import SmartRoot from "./components/SmartRoot";
 
 
@@ -42,7 +41,6 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <BuyCreditsProvider>
-            <MaintenanceGate>
             <Routes>
               {/* Public */}
               <Route path="/" element={<SmartRoot />} />
@@ -71,7 +69,6 @@ const App = () => (
               <Route path="/admin/domains" element={<ProtectedRoute><AdminDomains /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
-            </MaintenanceGate>
           </BuyCreditsProvider>
         </AuthProvider>
       </BrowserRouter>
