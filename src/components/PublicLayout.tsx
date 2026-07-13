@@ -45,6 +45,7 @@ export function PublicFooter() {
           <Link to="/legal/terms" className="hover:text-foreground">Terms</Link>
           <Link to="/legal/privacy" className="hover:text-foreground">Privacy</Link>
           <Link to="/legal/refunds" className="hover:text-foreground">Refunds</Link>
+          <a href="mailto:ccborchers@gmail.com" className="hover:text-foreground">Contact</a>
         </nav>
       </div>
     </footer>

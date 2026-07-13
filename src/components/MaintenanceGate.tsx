@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,16 +12,26 @@ import { toast } from "sonner";
 const OWNER_EMAIL = "ccborchers@gmail.com";
 const ALLOWED_EMAILS = [OWNER_EMAIL, "joyfullhart@gmail.com", "joyfullhart@googlemail.com"];
 
+// Always publicly reachable, even during maintenance — required for Paddle's
+// merchant-of-record verification (Terms/Privacy/Refund policies + pricing
+// must be visible without signing in).
+const PUBLIC_PATHS = ["/", "/pricing", "/legal/terms", "/legal/privacy", "/legal/refunds"];
+
 function isAllowedEmail(email?: string | null) {
   return !!email && ALLOWED_EMAILS.includes(email.toLowerCase());
 }
 
 export default function MaintenanceGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   const [showLogin, setShowLogin] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+
+  if (PUBLIC_PATHS.includes(location.pathname)) {
+    return <>{children}</>;
+  }
 
   if (loading) {
     return (
