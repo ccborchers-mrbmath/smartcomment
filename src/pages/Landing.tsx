@@ -56,15 +56,6 @@ export default function Landing() {
           ))}
         </div>
       </section>
-
-      <section className="max-w-6xl mx-auto px-6 pb-20 text-center">
-        <h2 className="font-display text-3xl mb-3">Free for partner schools</h2>
-        <p className="text-muted-foreground max-w-xl mx-auto">
-          If your school has signed up, verify your school email and SmartComment is free —
-          forever. Otherwise, start with 200 free credits and top up only when you need more.
-        </p>
-        <Button className="mt-6" asChild><Link to="/pricing">View credit packs</Link></Button>
-      </section>
     </PublicLayout>
   );
 }
