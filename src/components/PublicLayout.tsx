@@ -39,6 +39,11 @@ export function PublicFooter() {
         <div>
           <div className="font-display text-base text-foreground">SmartComment</div>
           <div className="mt-1">© {new Date().getFullYear()} Christopher Charles Borchers. All rights reserved.</div>
+          <div className="mt-2 text-xs">
+            SmartComment is operated as a sole proprietorship by Christopher Charles Borchers.
+            <br />
+            Postal address: c/o LIV Village, PO Box 1817, Verulam, 4340, South Africa
+          </div>
         </div>
         <nav className="flex flex-wrap gap-x-6 gap-y-2">
           <Link to="/pricing" className="hover:text-foreground">Pricing</Link>

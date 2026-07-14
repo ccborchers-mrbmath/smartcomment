@@ -14,6 +14,22 @@ export default function Terms() {
         use the Service.
       </p>
       <p>
+        SmartComment is operated as a sole proprietorship by Christopher Charles Borchers.
+      </p>
+      <p>
+        Postal address:
+        <br />
+        c/o LIV Village
+        <br />
+        PO Box 1817
+        <br />
+        Verulam
+        <br />
+        4340
+        <br />
+        South Africa
+      </p>
+      <p>
         If you are using the Service on behalf of a school or organisation, you represent that
         you have authority to bind that organisation to these Terms. If you are using the
         Service as an individual, you confirm that you are of legal age in your jurisdiction.

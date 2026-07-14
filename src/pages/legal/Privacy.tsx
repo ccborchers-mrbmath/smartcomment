@@ -12,6 +12,22 @@ export default function Privacy() {
         ("we", "us", "our"), the data controller for personal data processed through the
         Service. Contact: <a href="mailto:ccborchers@gmail.com">ccborchers@gmail.com</a>.
       </p>
+      <p>
+        SmartComment is operated as a sole proprietorship by Christopher Charles Borchers.
+      </p>
+      <p>
+        Postal address:
+        <br />
+        c/o LIV Village
+        <br />
+        PO Box 1817
+        <br />
+        Verulam
+        <br />
+        4340
+        <br />
+        South Africa
+      </p>
 
       <h2>2. Data we collect</h2>
       <ul>
