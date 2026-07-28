@@ -3,9 +3,10 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Users, ArrowRight } from "lucide-react";
+import { Plus, Users, ArrowRight, Download, Loader2 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 
 type ClassRow = {
   id: string;
@@ -17,9 +18,114 @@ type ClassRow = {
   student_count?: number;
 };
 
+const INPUT_TYPE_LABEL: Record<string, string> = {
+  voice: "Voice note",
+  handwriting: "Handwritten (photo)",
+  typed: "Typed",
+  file: "File",
+};
+
 export default function Dashboard() {
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+
+  const exportAllNotes = async () => {
+    setExporting(true);
+    try {
+      const { data: cls, error: clsErr } = await supabase
+        .from("classes")
+        .select("id, name, year_grade, subject, term")
+        .order("name", { ascending: true });
+      if (clsErr) throw clsErr;
+      if (!cls || cls.length === 0) {
+        toast.error("You don't have any classes yet.");
+        return;
+      }
+
+      const classIds = cls.map((c) => c.id);
+      const { data: studs, error: studErr } = await supabase
+        .from("students")
+        .select("id, name, class_id, position")
+        .in("class_id", classIds)
+        .order("position", { ascending: true });
+      if (studErr) throw studErr;
+
+      const studentIds = (studs ?? []).map((s) => s.id);
+      const { data: inputs, error: inputErr } = studentIds.length
+        ? await supabase
+            .from("student_inputs")
+            .select("student_id, type, text, transcript, term, created_at")
+            .in("student_id", studentIds)
+            .order("created_at", { ascending: true })
+        : { data: [], error: null };
+      if (inputErr) throw inputErr;
+
+      const inputsByStudent = new Map<string, typeof inputs>();
+      for (const i of inputs ?? []) {
+        const list = inputsByStudent.get(i.student_id) ?? [];
+        list.push(i);
+        inputsByStudent.set(i.student_id, list);
+      }
+      const studentsByClass = new Map<string, typeof studs>();
+      for (const s of studs ?? []) {
+        const list = studentsByClass.get(s.class_id) ?? [];
+        list.push(s);
+        studentsByClass.set(s.class_id, list);
+      }
+
+      const lines: string[] = [];
+      lines.push("SMARTCOMMENT — ALL NOTES EXPORT");
+      lines.push(`Generated: ${new Date().toLocaleString()}`);
+      lines.push("");
+
+      for (const c of cls) {
+        lines.push("================================");
+        lines.push(`CLASS: ${c.name}${[c.year_grade, c.subject, c.term].filter(Boolean).length ? ` (${[c.year_grade, c.subject, c.term].filter(Boolean).join(" · ")})` : ""}`);
+        lines.push("================================");
+        lines.push("");
+
+        const classStudents = studentsByClass.get(c.id) ?? [];
+        if (classStudents.length === 0) {
+          lines.push("(no students in this class)");
+          lines.push("");
+          continue;
+        }
+
+        for (const s of classStudents) {
+          lines.push(`--- ${s.name} ---`);
+          const studentInputs = inputsByStudent.get(s.id) ?? [];
+          if (studentInputs.length === 0) {
+            lines.push("(no notes)");
+          } else {
+            for (const i of studentInputs) {
+              const body = i.transcript || i.text || "";
+              const date = new Date(i.created_at).toLocaleDateString();
+              const typeLabel = INPUT_TYPE_LABEL[i.type] ?? i.type;
+              lines.push(`[${typeLabel}${i.term ? ` · ${i.term}` : ""} · ${date}]`);
+              lines.push(body);
+              lines.push("");
+            }
+          }
+          lines.push("");
+        }
+      }
+
+      const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `smartcomment-all-notes-${new Date().toISOString().slice(0, 10)}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      toast.error(err.message ?? "Could not export notes");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -53,9 +159,15 @@ export default function Dashboard() {
             Capture notes throughout the term, then generate report comments at the end.
           </p>
         </div>
-        <Button asChild size="lg">
-          <Link to="/classes/new"><Plus className="w-4 h-4 mr-1.5" />New class</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="lg" onClick={exportAllNotes} disabled={exporting}>
+            {exporting ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Download className="w-4 h-4 mr-1.5" />}
+            {exporting ? "Exporting…" : "Export all notes"}
+          </Button>
+          <Button asChild size="lg">
+            <Link to="/classes/new"><Plus className="w-4 h-4 mr-1.5" />New class</Link>
+          </Button>
+        </div>
       </div>
 
       {loading ? (
