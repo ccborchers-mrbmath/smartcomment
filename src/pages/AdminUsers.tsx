@@ -16,15 +16,13 @@ type Profile = {
   full_name: string | null;
   credits_balance: number;
   school_sponsored: boolean;
-  bypass_credit_check: boolean;
+  billing_override: "billed" | "exempt" | null;
 };
 
 type Status = "standard" | "billed" | "exempt";
 
 function statusFor(p: Profile): Status {
-  if (p.school_sponsored) return "exempt";
-  if (p.bypass_credit_check) return "billed";
-  return "standard";
+  return p.billing_override ?? "standard";
 }
 
 export default function AdminUsers() {
@@ -39,7 +37,7 @@ export default function AdminUsers() {
     setLoading(true);
     const { data } = await supabase
       .from("profiles")
-      .select("id, email, full_name, credits_balance, school_sponsored, bypass_credit_check")
+      .select("id, email, full_name, credits_balance, school_sponsored, billing_override")
       .order("email");
     setProfiles((data as Profile[]) ?? []);
     setLoading(false);
@@ -64,7 +62,7 @@ export default function AdminUsers() {
       toast.error("Failed to update status");
     } else {
       setProfiles((prev) => prev.map((row) => row.id === p.id
-        ? { ...row, school_sponsored: status === "exempt", bypass_credit_check: status === "billed" }
+        ? { ...row, billing_override: status === "standard" ? null : status }
         : row));
       toast.success(`${p.email ?? p.id} set to ${status}`);
     }
@@ -83,9 +81,12 @@ export default function AdminUsers() {
           <h1 className="font-display text-3xl">Billing status</h1>
         </div>
         <p className="text-muted-foreground text-sm -mt-4">
-          Standard = normal credit-gated billing. Billed = can use AI features without sufficient
-          credits, but usage is still tracked for manual invoicing. Exempt = unlimited unrestricted
-          access (same as a sponsored school teacher).
+          Standard = normal credit-gated billing. Billed and Exempt both let a user use AI
+          features without sufficient credits while usage stays fully tracked (real cost and
+          credit-equivalent, not zeroed) for manual invoicing later — the two are just separate
+          labels for your own bookkeeping. "School (verified)" is unrelated: it's set via the
+          /verify-school flow for actual partner schools, whose usage is already flat-fee and
+          isn't tracked per-user for billing.
         </p>
 
         <Card className="p-5">
@@ -111,10 +112,11 @@ export default function AdminUsers() {
                         <div className="text-xs text-muted-foreground font-mono">{p.email ?? p.id}</div>
                       </td>
                       <td>{p.credits_balance}</td>
-                      <td>
+                      <td className="space-x-1">
                         {status === "exempt" && <Badge className="bg-accent text-accent-foreground">Exempt</Badge>}
                         {status === "billed" && <Badge variant="secondary">Billed</Badge>}
                         {status === "standard" && <Badge variant="outline">Standard</Badge>}
+                        {p.school_sponsored && <Badge variant="outline">School (verified)</Badge>}
                       </td>
                       <td className="text-right">
                         <Select

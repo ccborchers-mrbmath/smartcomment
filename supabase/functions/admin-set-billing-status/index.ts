@@ -1,7 +1,11 @@
 // Super-admin-only: set a user's billing status.
 // "standard" = normal credit-gated billing (default)
-// "billed"   = can use AI features regardless of credit balance; usage still logged for manual invoicing
-// "exempt"   = unlimited unrestricted access (school_sponsored)
+// "billed"   = can use AI features regardless of credit balance; usage still logged
+//              at full cost/credits for manual invoicing
+// "exempt"   = same as "billed" but signals no intent to invoice this user
+// Deliberately independent of school_sponsored, which is the real
+// school-verification flow (/verify-school) and zeroes credits_used since
+// those schools already pay a flat sponsorship fee.
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -43,8 +47,7 @@ serve(async (req) => {
     const { error: updateErr } = await admin
       .from("profiles")
       .update({
-        school_sponsored: status === "exempt",
-        bypass_credit_check: status === "billed",
+        billing_override: status === "standard" ? null : status,
       })
       .eq("id", targetUserId);
     if (updateErr) throw updateErr;

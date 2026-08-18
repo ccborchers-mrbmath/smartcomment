@@ -11,7 +11,7 @@ export interface EntitlementOk {
   ok: true;
   sponsored: boolean;
   balance: number;
-  bypassCreditCheck: boolean;
+  billingOverride: "billed" | "exempt" | null;
 }
 
 const corsHeaders = {
@@ -23,7 +23,7 @@ export async function checkEntitlement(userId: string): Promise<EntitlementOk | 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
   const { data, error } = await admin
     .from("profiles")
-    .select("credits_balance, school_sponsored, bypass_credit_check")
+    .select("credits_balance, school_sponsored, billing_override")
     .eq("id", userId)
     .maybeSingle();
   if (error || !data) {
@@ -33,10 +33,10 @@ export async function checkEntitlement(userId: string): Promise<EntitlementOk | 
     );
   }
   const sponsored = !!data.school_sponsored;
-  const bypassCreditCheck = !!data.bypass_credit_check;
+  const billingOverride = (data.billing_override ?? null) as "billed" | "exempt" | null;
   const balance = data.credits_balance ?? 0;
-  if (sponsored || bypassCreditCheck || balance > 0) {
-    return { ok: true, sponsored, balance, bypassCreditCheck };
+  if (sponsored || billingOverride !== null || balance > 0) {
+    return { ok: true, sponsored, balance, billingOverride };
   }
   return new Response(
     JSON.stringify({
