@@ -30,6 +30,7 @@ import VerifySchool from "./pages/VerifySchool";
 import SchoolInvoice from "./pages/SchoolInvoice";
 import AdminDomains from "./pages/AdminDomains";
 import AdminUsage from "./pages/AdminUsage";
+import AdminUsers from "./pages/AdminUsers";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -69,6 +70,7 @@ const App = () => (
               <Route path="/school/invoice" element={<ProtectedRoute><SchoolInvoice /></ProtectedRoute>} />
               <Route path="/admin/domains" element={<ProtectedRoute><AdminDomains /></ProtectedRoute>} />
               <Route path="/admin/usage" element={<ProtectedRoute><AdminUsage /></ProtectedRoute>} />
+              <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BuyCreditsProvider>

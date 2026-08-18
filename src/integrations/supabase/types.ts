@@ -290,6 +290,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          billing_override: string | null
           created_at: string
           credits_balance: number
           email: string | null
@@ -309,6 +310,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          billing_override?: string | null
           created_at?: string
           credits_balance?: number
           email?: string | null
@@ -328,6 +330,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          billing_override?: string | null
           created_at?: string
           credits_balance?: number
           email?: string | null
