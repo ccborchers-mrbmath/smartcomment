@@ -11,6 +11,7 @@ export interface EntitlementOk {
   ok: true;
   sponsored: boolean;
   balance: number;
+  bypassCreditCheck: boolean;
 }
 
 const corsHeaders = {
@@ -22,7 +23,7 @@ export async function checkEntitlement(userId: string): Promise<EntitlementOk | 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
   const { data, error } = await admin
     .from("profiles")
-    .select("credits_balance, school_sponsored")
+    .select("credits_balance, school_sponsored, bypass_credit_check")
     .eq("id", userId)
     .maybeSingle();
   if (error || !data) {
@@ -32,9 +33,10 @@ export async function checkEntitlement(userId: string): Promise<EntitlementOk | 
     );
   }
   const sponsored = !!data.school_sponsored;
+  const bypassCreditCheck = !!data.bypass_credit_check;
   const balance = data.credits_balance ?? 0;
-  if (sponsored || balance > 0) {
-    return { ok: true, sponsored, balance };
+  if (sponsored || bypassCreditCheck || balance > 0) {
+    return { ok: true, sponsored, balance, bypassCreditCheck };
   }
   return new Response(
     JSON.stringify({
