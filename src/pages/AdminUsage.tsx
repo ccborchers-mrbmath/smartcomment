@@ -20,7 +20,7 @@ type Row = {
 };
 
 function monthOptions(): { value: string; label: string }[] {
-  const out: { value: string; label: string }[] = [];
+  const out: { value: string; label: string }[] = [{ value: "all", label: "All time" }];
   const now = new Date();
   for (let i = 0; i < 12; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -31,7 +31,8 @@ function monthOptions(): { value: string; label: string }[] {
   return out;
 }
 
-function rangeFor(month: string): { start: string; end: string } {
+function rangeFor(month: string): { start: string; end: string } | null {
+  if (month === "all") return null;
   const [y, m] = month.split("-").map(Number);
   const start = new Date(Date.UTC(y, m - 1, 1));
   const end = new Date(Date.UTC(y, m, 1));
@@ -56,21 +57,21 @@ export default function AdminUsage() {
   };
 
   useEffect(() => {
-    if (!isSuperAdmin || !searched || !appliedSuffix) { setRows([]); return; }
+    if (!isSuperAdmin || !searched) { setRows([]); return; }
     setLoading(true);
-    const { start, end } = rangeFor(month);
+    const range = rangeFor(month);
     (async () => {
       const PAGE = 1000;
       const all: Row[] = [];
       for (let from = 0; ; from += PAGE) {
-        const { data, error } = await supabase
+        let q = supabase
           .from("usage_events")
           .select("user_id, function_name, units, credits_used, cost_usd_estimate, attributed_domain, created_at")
-          .gte("created_at", start)
-          .lt("created_at", end)
-          .ilike("attributed_domain", `%${appliedSuffix}`)
           .order("created_at", { ascending: false })
           .range(from, from + PAGE - 1);
+        if (range) q = q.gte("created_at", range.start).lt("created_at", range.end);
+        if (appliedSuffix) q = q.ilike("attributed_domain", `%${appliedSuffix}`);
+        const { data, error } = await q;
         if (error || !data?.length) break;
         all.push(...(data as Row[]));
         if (data.length < PAGE) break;
@@ -92,9 +93,9 @@ export default function AdminUsage() {
   }, [isSuperAdmin, searched, appliedSuffix, month]);
 
   const perUser = useMemo(() => {
-    const map = new Map<string, { events: number; units: number; credits: number; cost: number }>();
+    const map = new Map<string, { domain: string; events: number; units: number; credits: number; cost: number }>();
     rows.forEach((r) => {
-      const cur = map.get(r.user_id) ?? { events: 0, units: 0, credits: 0, cost: 0 };
+      const cur = map.get(r.user_id) ?? { domain: r.attributed_domain ?? "", events: 0, units: 0, credits: 0, cost: 0 };
       cur.events++; cur.units += r.units; cur.credits += r.credits_used; cur.cost += Number(r.cost_usd_estimate);
       map.set(r.user_id, cur);
     });
@@ -112,13 +113,13 @@ export default function AdminUsage() {
   const monthLabel = months.find((m) => m.value === month)?.label ?? month;
 
   const downloadCsv = () => {
-    const header = "teacher,ai_actions,units,credits,cost_usd\n";
-    const lines = perUser.map(([uid, t]) => `"${(userEmails[uid] ?? uid).replace(/"/g, '""')}",${t.events},${t.units},${t.credits},${t.cost.toFixed(6)}`);
+    const header = "teacher,domain,ai_actions,units,credits,cost_usd\n";
+    const lines = perUser.map(([uid, t]) => `"${(userEmails[uid] ?? uid).replace(/"/g, '""')}","${t.domain}",${t.events},${t.units},${t.credits},${t.cost.toFixed(6)}`);
     const blob = new Blob([header + lines.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `usage-${appliedSuffix || "filtered"}-${month}.csv`;
+    a.download = `usage-${appliedSuffix || "all"}-${month}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -135,16 +136,18 @@ export default function AdminUsage() {
           <h1 className="font-display text-3xl">Usage by email domain</h1>
         </div>
         <p className="text-muted-foreground text-sm -mt-4">
-          Filter usage by email suffix for manual/interim billing — no school registration required.
+          Filter usage by email suffix and/or month for manual/interim billing — no school
+          registration required. Leave the suffix blank and pick "All time" for the full table
+          across every user and month.
         </p>
 
         <Card className="p-5 flex flex-wrap items-end gap-4">
           <div className="space-y-1">
-            <Label htmlFor="suffix" className="text-xs text-muted-foreground">Email suffix</Label>
+            <Label htmlFor="suffix" className="text-xs text-muted-foreground">Email suffix (optional)</Label>
             <Input
               id="suffix"
               className="w-64"
-              placeholder="e.g. theschool.edu"
+              placeholder="leave blank for all users"
               value={suffix}
               onChange={(e) => setSuffix(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }}
@@ -159,7 +162,7 @@ export default function AdminUsage() {
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={runSearch} disabled={!suffix.trim()}>Search</Button>
+          <Button onClick={runSearch}>Search</Button>
           <Button variant="outline" onClick={downloadCsv} disabled={!rows.length} className="ml-auto">
             <Download className="w-4 h-4 mr-2" />CSV
           </Button>
@@ -168,12 +171,14 @@ export default function AdminUsage() {
           </Button>
         </Card>
 
-        {searched && appliedSuffix && (
+        {searched && (
           <Card className="p-6">
             <div className="flex items-baseline justify-between">
               <div>
-                <div className="text-sm text-muted-foreground">Usage for domains ending in</div>
-                <div className="font-display text-2xl font-mono">{appliedSuffix}</div>
+                <div className="text-sm text-muted-foreground">
+                  {appliedSuffix ? "Usage for domains ending in" : "Usage across all domains"}
+                </div>
+                {appliedSuffix && <div className="font-display text-2xl font-mono">{appliedSuffix}</div>}
                 <div className="text-sm text-muted-foreground">{monthLabel}</div>
               </div>
               <div className="text-right">
@@ -188,25 +193,26 @@ export default function AdminUsage() {
         <Card className="p-5">
           <div className="font-semibold mb-3">By teacher</div>
           {!searched ? (
-            <div className="text-sm text-muted-foreground text-center py-4">Enter an email suffix and search.</div>
+            <div className="text-sm text-muted-foreground text-center py-4">Set filters (or leave them open) and search.</div>
           ) : loading ? (
             <div className="text-sm text-muted-foreground">Loading…</div>
           ) : (
             <table className="w-full text-sm">
               <thead className="text-muted-foreground text-left">
-                <tr><th className="py-2">Teacher</th><th>AI actions</th><th>Units</th><th>Credits</th><th className="text-right">Cost (raw AI cost, no markup)</th></tr>
+                <tr><th className="py-2">Teacher</th><th>Domain</th><th>AI actions</th><th>Units</th><th>Credits</th><th className="text-right">Cost (raw AI cost, no markup)</th></tr>
               </thead>
               <tbody>
                 {perUser.map(([uid, t]) => (
                   <tr key={uid} className="border-t border-border">
                     <td className="py-2">{userEmails[uid] ?? uid}</td>
+                    <td className="font-mono text-xs">{t.domain}</td>
                     <td>{t.events}</td>
                     <td>{t.units}</td>
                     <td>{t.credits}</td>
                     <td className="text-right">${t.cost.toFixed(4)}</td>
                   </tr>
                 ))}
-                {!perUser.length && <tr><td colSpan={5} className="py-4 text-muted-foreground text-center">No usage for this domain/month.</td></tr>}
+                {!perUser.length && <tr><td colSpan={6} className="py-4 text-muted-foreground text-center">No usage for this filter.</td></tr>}
               </tbody>
             </table>
           )}
