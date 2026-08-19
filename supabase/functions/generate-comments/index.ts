@@ -35,7 +35,7 @@ serve(async (req) => {
     // Load students + verify ownership
     const { data: students } = await supabase
       .from("students")
-      .select("id, name, class_id, overrides, included_terms")
+      .select("id, name, class_id, overrides, included_terms, days_absent, extracurricular")
       .in("id", studentIds);
     if (!students || students.length === 0) {
       return new Response(JSON.stringify({ error: "No students found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -107,7 +107,7 @@ serve(async (req) => {
     let assessmentsList: any[] = [];
     const marksByStudent: Record<string, Record<string, any>> = {};
     if (wantMarks) {
-      let aq = supabase.from("assessments").select("id, name, description, term, max_marks, position").eq("class_id", classId).order("position");
+      let aq = supabase.from("assessments").select("id, name, description, term, max_marks, position, class_average").eq("class_id", classId).order("position");
       if (allowedMarkTerms.length > 0) aq = aq.in("term", allowedMarkTerms);
       const { data: aData } = await aq;
       assessmentsList = aData ?? [];
@@ -124,8 +124,19 @@ serve(async (req) => {
       }
     }
     const hasMarksData = wantMarks && assessmentsList.length > 0;
+    const isRegistration = !!cls?.is_registration;
+
+    const registrationFraming = `
+
+YOU ARE WRITING AS A REGISTRATION TEACHER (also called a form teacher or home group teacher).
+- This is a HOLISTIC comment about the whole child, NOT a single-subject comment.
+- Draw the picture across ALL of the student's subjects together, plus their character, conduct, attitude, effort and involvement in school life.
+- Do not write as though you taught them one subject. You are the teacher who oversees them across the whole curriculum.
+- Where the evidence supports it, comment on the overall shape of their academic profile (which areas they are flourishing in, which are proving harder) rather than narrating every subject one by one.
+- The teacher's own notes about this student carry equal weight to the marks — they capture conduct, character and pastoral observations the marks cannot show.`;
 
     const systemPrompt = `You write end-of-term school report comments for a teacher.
+${isRegistration ? registrationFraming : ""}
 
 Voice & style — match the teacher's previous comments below. Be specific, warm, and professional.
 
@@ -141,6 +152,8 @@ ${reqs.notes ? `\nAdditional notes: ${reqs.notes}` : ""}
 
 Output one comment per student, faithful to the notes provided. Never invent facts.
 
+If a student block includes DAYS ABSENT, use it only when it genuinely matters — sustained absence that plausibly affected progress, or attendance worth praising. Never recite the number itself. If it includes EXTRA-CURRICULAR, weave those activities in naturally where they add to the picture of the student.
+
 CRITICAL PRONOUN RULE: Each student block has a PRONOUNS field. Use ONLY those pronouns when referring to the student. The per-student PRONOUNS field overrides any global pronoun setting.
 
 CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
@@ -148,7 +161,7 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
 - Typed notes, voice transcripts, OCR text, and any other source MAY contain DIFFERENT spellings of the same name (e.g. roster says "Aleisha" but a voice transcript says "Alicia", or roster says "Siôn" but notes say "Shawn"). These differences are ERRORS in the source — they are NOT alternative valid spellings.
 - You MUST use ONLY the exact spelling from the NAME field every single time you refer to the student. Do not change, shorten, lengthen, anglicise, phoneticise, or "correct" it. Do not mix spellings within a comment.
 - If the notes contain a name spelled differently, treat that as referring to THIS student and silently use the roster spelling instead.
-- Use ONLY the student's first name (the first whitespace-separated word of the NAME field) every time you refer to them. NEVER use the surname, last name, family name, or full name. Do not use initials. Do not use "Mr/Mrs/Ms [Surname]". If the NAME field is "Aleisha Thompson", refer to the student only as "Aleisha" — never "Aleisha Thompson", never "Thompson", never "Miss Thompson".${hasMarksData ? `\n\nASSESSMENT DATA RULES (HIGHEST PRIORITY when an ASSESSMENT SUMMARY block is present):\n- NEVER state, imply, or hint at a raw mark, percentage, fraction, ranking, position, or "out of" number. Do NOT say "scored", "achieved X%", "got X out of Y", "top of the class", "above average", "below average", "highest mark", "lowest mark", or similar.\n- NEVER compare the student to other students or to a class average. Comparisons are ONLY between this student's own assessments.\n- Use the per-assessment deltas and descriptions to identify relative strengths and growth areas WITHIN the student's own record.\n- Use comparative language only, e.g. "has shown a stronger performance in {topic from description A} than in {topic from description B}", "is finding {topic} more challenging than {other topic}", "progress in {topic} has lifted noticeably since {earlier assessment topic}".\n- NEVER use "done well in…", "done poorly in…", "did badly", "failed", "excelled", or any qualitative judgement word without a comparative anchor inside the student's own record.\n- Refer to assessment content by its DESCRIPTION (the topic/skill assessed), NOT by the assessment NAME (not "Quiz 1", not "Mid-term test").\n- Assessments marked Absent or Exempt must not be commented on.` : ""}${instruction ? `\n\nADDITIONAL INSTRUCTION: ${instruction}` : ""}`;
+- Use ONLY the student's first name (the first whitespace-separated word of the NAME field) every time you refer to them. NEVER use the surname, last name, family name, or full name. Do not use initials. Do not use "Mr/Mrs/Ms [Surname]". If the NAME field is "Aleisha Thompson", refer to the student only as "Aleisha" — never "Aleisha Thompson", never "Thompson", never "Miss Thompson".${hasMarksData ? `\n\nASSESSMENT DATA RULES (HIGHEST PRIORITY when an ASSESSMENT SUMMARY block is present):\n- NEVER state, imply, or hint at a raw mark, percentage, fraction, ranking, position, or "out of" number. Do NOT say "scored", "achieved X%", "got X out of Y", "top of the class", "above average", "below average", "highest mark", "lowest mark", or similar.\n- NEVER compare the student to other students or to a class average IN THE TEXT YOU WRITE. Any comparison you express must be between this student's own assessments.\n- A "form average" may be given for an assessment. It exists ONLY to tell you how demanding that assessment was for everyone, so you can judge which results are genuinely strong for this student. A mark below the student's own average can still be a real strength if the form average for it is low, and a high mark can be unremarkable if the form found it easy. Weigh results this way BEFORE deciding what to praise or flag.\n- The form average is reasoning material for you alone. NEVER state it, allude to it, or describe the student as above/below/in line with their peers, the form, the class, or "the average". The reader must not be able to tell a form average was available to you.\n- Use the per-assessment deltas and descriptions to identify relative strengths and growth areas WITHIN the student's own record.\n- Use comparative language only, e.g. "has shown a stronger performance in {topic from description A} than in {topic from description B}", "is finding {topic} more challenging than {other topic}", "progress in {topic} has lifted noticeably since {earlier assessment topic}".\n- NEVER use "done well in…", "done poorly in…", "did badly", "failed", "excelled", or any qualitative judgement word without a comparative anchor inside the student's own record.\n- Refer to assessment content by its DESCRIPTION (the topic/skill assessed), NOT by the assessment NAME (not "Quiz 1", not "Mid-term test").\n- Assessments marked Absent or Exempt must not be commented on.` : ""}${instruction ? `\n\nADDITIONAL INSTRUCTION: ${instruction}` : ""}`;
 
     const buildBlock = (s: any) => {
       const allowedTerms: string[] = (s as any).included_terms ?? ["2026 Term 1","2026 Term 2","2026 Term 3","2026 Term 4"];
@@ -173,7 +186,7 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
       if (hasMarksData) {
         const studentMarks = marksByStudent[s.id] || {};
         const rows: string[] = [];
-        const pcts: { aid: string; name: string; desc: string; pct: number }[] = [];
+        const pcts: { aid: string; name: string; desc: string; pct: number; avgPct: number | null }[] = [];
         for (const a of assessmentsList) {
           const m = studentMarks[a.id];
           const desc = (a.description || "").trim() || "(no description)";
@@ -191,8 +204,10 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
             continue;
           }
           const pct = (Number(m.raw_mark) / Number(a.max_marks)) * 100;
-          rows.push(`- "${a.name}" (${termLabel}, ${desc}): ${m.raw_mark}/${a.max_marks}`);
-          pcts.push({ aid: a.id, name: a.name, desc, pct });
+          const avgRaw = a.class_average === null || a.class_average === undefined ? null : Number(a.class_average);
+          const avgPct = avgRaw === null || !Number.isFinite(avgRaw) ? null : (avgRaw / Number(a.max_marks)) * 100;
+          rows.push(`- "${a.name}" (${termLabel}, ${desc}): ${m.raw_mark}/${a.max_marks}${avgPct === null ? "" : ` [form average ${Math.round(avgPct)}% — internal difficulty signal only, never mention]`}`);
+          pcts.push({ aid: a.id, name: a.name, desc, pct, avgPct });
         }
         if (pcts.length > 0) {
           const avg = pcts.reduce((s, x) => s + x.pct, 0) / pcts.length;
@@ -203,13 +218,26 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
           }).join(", ");
           rows.push(`Student's own average across graded assessments: ${Math.round(avg)}%`);
           rows.push(`Per-assessment delta vs own average (positive = relatively stronger, negative = relatively weaker): ${deltas}`);
+          const withAvg = pcts.filter((p) => p.avgPct !== null);
+          if (withAvg.length > 0) {
+            const adjusted = withAvg.map((p) => {
+              const d = Math.round(p.pct - (p.avgPct as number));
+              return `${p.name} ${d > 0 ? `+${d}` : `${d}`}`;
+            }).join(", ");
+            rows.push(`INTERNAL ONLY — difficulty-adjusted standing (student % minus form average %; positive = performed well on an assessment the form found harder, negative = underperformed relative to how the form found it). Use this to decide what is genuinely a strength or a concern. NEVER mention these figures or any peer comparison: ${adjusted}`);
+          }
         } else {
           rows.push("(no graded assessments for this student in the selected terms)");
         }
         marksBlock = `\nASSESSMENT SUMMARY:\n${rows.join("\n")}`;
       }
 
-      return `STUDENT_ID: ${s.id}\nNAME: ${s.name}\nPRONOUNS: ${pronouns}\nNOTES:\n${notes || "(no notes)"}${marksBlock}\n${ovText}`;
+      const extras: string[] = [];
+      if (s.days_absent !== null && s.days_absent !== undefined) extras.push(`DAYS ABSENT: ${s.days_absent}`);
+      if ((s.extracurricular ?? "").trim()) extras.push(`EXTRA-CURRICULAR: ${String(s.extracurricular).trim()}`);
+      const extrasText = extras.length ? `\n${extras.join("\n")}` : "";
+
+      return `STUDENT_ID: ${s.id}\nNAME: ${s.name}\nPRONOUNS: ${pronouns}${extrasText}\nNOTES:\n${notes || "(no notes)"}${marksBlock}\n${ovText}`;
     };
 
     const callBatch = async (batch: any[]): Promise<{ comments: { student_id: string; text: string }[]; error?: { status: number; message: string } }> => {

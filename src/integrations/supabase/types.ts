@@ -64,6 +64,7 @@ export type Database = {
       }
       assessments: {
         Row: {
+          class_average: number | null
           class_id: string
           created_at: string
           description: string
@@ -77,6 +78,7 @@ export type Database = {
           weight: number
         }
         Insert: {
+          class_average?: number | null
           class_id: string
           created_at?: string
           description?: string
@@ -90,6 +92,7 @@ export type Database = {
           weight?: number
         }
         Update: {
+          class_average?: number | null
           class_id?: string
           created_at?: string
           description?: string
@@ -108,6 +111,7 @@ export type Database = {
         Row: {
           active_term: string | null
           created_at: string
+          is_registration: boolean
           id: string
           name: string
           requirements: Json
@@ -120,6 +124,7 @@ export type Database = {
         Insert: {
           active_term?: string | null
           created_at?: string
+          is_registration?: boolean
           id?: string
           name: string
           requirements?: Json
@@ -132,6 +137,7 @@ export type Database = {
         Update: {
           active_term?: string | null
           created_at?: string
+          is_registration?: boolean
           id?: string
           name?: string
           requirements?: Json
@@ -521,6 +527,8 @@ export type Database = {
         Row: {
           class_id: string
           created_at: string
+          days_absent: number | null
+          extracurricular: string | null
           first_name: string | null
           id: string
           included_terms: string[]
@@ -534,6 +542,8 @@ export type Database = {
         Insert: {
           class_id: string
           created_at?: string
+          days_absent?: number | null
+          extracurricular?: string | null
           first_name?: string | null
           id?: string
           included_terms?: string[]
@@ -547,6 +557,8 @@ export type Database = {
         Update: {
           class_id?: string
           created_at?: string
+          days_absent?: number | null
+          extracurricular?: string | null
           first_name?: string | null
           id?: string
           included_terms?: string[]

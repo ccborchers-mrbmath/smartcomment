@@ -21,6 +21,7 @@ type Assessment = {
   max_marks: number;
   weight: number;
   position: number;
+  class_average: number | null;
 };
 type Mark = {
   id: string;
@@ -212,11 +213,18 @@ export default function ClassMarksheet() {
     return Math.round((num / den) * 100);
   };
 
+  // Every term present on the sheet, not just the ones in the fixed TERMS list —
+  // an imported marksheet can carry terms from another academic year.
   const termsUsed = useMemo(() => {
     const set = new Set<string>();
     assessments.forEach((a) => { if (a.term) set.add(a.term); });
-    return TERMS.filter((t) => set.has(t));
+    return Array.from(set).sort();
   }, [assessments]);
+
+  const termOptions = useMemo(
+    () => Array.from(new Set<string>([...TERMS, ...termsUsed])).sort(),
+    [termsUsed]
+  );
 
   const downloadCsv = () => {
     if (!klass) return;
@@ -326,10 +334,10 @@ export default function ClassMarksheet() {
                       <div className="flex gap-1">
                         <Select value={a.term ?? undefined} onValueChange={(v) => { updateAssessment(a.id, { term: v }); commitAssessment(a.id, { term: v }); }}>
                           <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Term" /></SelectTrigger>
-                          <SelectContent>{TERMS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                          <SelectContent>{termOptions.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
-                      <div className="grid grid-cols-2 gap-1">
+                      <div className="grid grid-cols-3 gap-1">
                         <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
                           out of
                           <Input
@@ -348,6 +356,20 @@ export default function ClassMarksheet() {
                             value={a.weight}
                             onChange={(e) => updateAssessment(a.id, { weight: Number(e.target.value) })}
                             onBlur={(e) => commitAssessment(a.id, { weight: Number(e.target.value) || 0 })}
+                            className="h-7 text-xs"
+                          />
+                        </label>
+                        <label
+                          className="flex items-center gap-1 text-[11px] text-muted-foreground"
+                          title="Form/class average for this subject. Used only to judge how demanding the assessment was — never quoted in generated comments."
+                        >
+                          form av
+                          <Input
+                            type="number"
+                            value={a.class_average ?? ""}
+                            placeholder="—"
+                            onChange={(e) => updateAssessment(a.id, { class_average: e.target.value === "" ? null : Number(e.target.value) })}
+                            onBlur={(e) => commitAssessment(a.id, { class_average: e.target.value === "" ? null : (Number(e.target.value) || 0) })}
                             className="h-7 text-xs"
                           />
                         </label>
