@@ -88,6 +88,15 @@ export default function NewClass() {
     setReports((prev) => [...prev, ...extracted.map(() => null)]);
   };
 
+  // An in-flight import lives only in component state, so leaving the page
+  // throws the work away. Warn rather than let it vanish silently.
+  useEffect(() => {
+    if (!busy) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [busy]);
+
   // Listen for paste anywhere on the page while on step 1
   useEffect(() => {
     if (step !== 1) return;
@@ -168,6 +177,9 @@ export default function NewClass() {
         toast.error("No student reports found in that PDF.");
         return;
       }
+      if (!data?.positional_layer) {
+        toast.warning("That PDF had no readable text layer, so marks were read from the page image. Check the marksheet carefully after creating.");
+      }
       setReportYear(String(data?.year ?? ""));
       setNames((p) => [...p, ...students.map((s) => s.name)]);
       setGenders((p) => [...p, ...students.map(() => null)]);
@@ -178,7 +190,14 @@ export default function NewClass() {
       const subjectCount = new Set(students.flatMap((s) => s.subjects.map((x) => x.name))).size;
       toast.success(`Found ${students.length} students and ${subjectCount} subjects`);
     } catch (e: any) {
-      toast.error(e.message ?? "Could not read that report");
+      // supabase-js reports a timed-out or crashed function as a send failure,
+      // which tells the teacher nothing useful on its own.
+      const raw = String(e?.message ?? "");
+      toast.error(
+        /failed to send|fetch/i.test(raw)
+          ? "The report couldn't be processed — it may be too large. Try splitting it into two smaller PDFs."
+          : raw || "Could not read that report",
+      );
     } finally {
       setBusy(false);
     }
@@ -461,6 +480,12 @@ export default function NewClass() {
                         {busy ? "Reading report…" : "Upload report PDF"}
                       </span>
                     </Button>
+                    {busy && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        A full form takes up to a minute. Please stay on this page — you'll
+                        review the students and marks before anything is created.
+                      </p>
+                    )}
                     <input
                       type="file"
                       className="hidden"
