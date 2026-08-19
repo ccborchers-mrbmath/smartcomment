@@ -21,6 +21,7 @@ type Assessment = {
   max_marks: number;
   weight: number;
   position: number;
+  class_average: number | null;
 };
 type Mark = {
   id: string;
@@ -329,7 +330,7 @@ export default function ClassMarksheet() {
                           <SelectContent>{TERMS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
-                      <div className="grid grid-cols-2 gap-1">
+                      <div className="grid grid-cols-3 gap-1">
                         <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
                           out of
                           <Input
@@ -348,6 +349,20 @@ export default function ClassMarksheet() {
                             value={a.weight}
                             onChange={(e) => updateAssessment(a.id, { weight: Number(e.target.value) })}
                             onBlur={(e) => commitAssessment(a.id, { weight: Number(e.target.value) || 0 })}
+                            className="h-7 text-xs"
+                          />
+                        </label>
+                        <label
+                          className="flex items-center gap-1 text-[11px] text-muted-foreground"
+                          title="Form/class average for this subject. Used only to judge how demanding the assessment was — never quoted in generated comments."
+                        >
+                          form av
+                          <Input
+                            type="number"
+                            value={a.class_average ?? ""}
+                            placeholder="—"
+                            onChange={(e) => updateAssessment(a.id, { class_average: e.target.value === "" ? null : Number(e.target.value) })}
+                            onBlur={(e) => commitAssessment(a.id, { class_average: e.target.value === "" ? null : (Number(e.target.value) || 0) })}
                             className="h-7 text-xs"
                           />
                         </label>

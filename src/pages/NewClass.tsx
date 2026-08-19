@@ -7,9 +7,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, Loader2, X, Plus, ArrowLeft, ClipboardPaste, ImageIcon, Camera } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Upload, Loader2, X, Plus, ArrowLeft, ClipboardPaste, ImageIcon, Camera, FileText } from "lucide-react";
 import { toast } from "sonner";
 import ImageCropDialog from "@/components/ImageCropDialog";
+import { useBuyCredits, handleInsufficientCredits } from "@/components/BuyCreditsDialog";
+
+const TERMS = ["2026 Term 1", "2026 Term 2", "2026 Term 3", "2026 Term 4"];
+
+type ExtractedMark = { term: string; student_mark: string; form_average: string };
+type ExtractedSubject = { name: string; marks: ExtractedMark[] };
+type StudentReport = {
+  name: string;
+  days_absent?: string;
+  promotion_result?: string;
+  extracurricular?: string;
+  subjects: ExtractedSubject[];
+};
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -27,23 +41,51 @@ const fileToText = (file: File): Promise<string> =>
     r.readAsText(file);
   });
 
+const num = (s: string | undefined | null): number | null => {
+  if (s === null || s === undefined) return null;
+  const t = String(s).trim().replace(/[%,]/g, "");
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+};
+
+// "Term 3" + year 2026 -> "2026 Term 3", falling back to the raw label when the
+// report doesn't line up with the terms the app knows about.
+const normaliseTerm = (label: string, year: string): string => {
+  const m = String(label).match(/(\d)/);
+  const y = String(year).match(/(20\d{2})/)?.[1];
+  if (m && y) {
+    const candidate = `${y} Term ${m[1]}`;
+    if (TERMS.includes(candidate)) return candidate;
+    return candidate;
+  }
+  return label;
+};
+
 export default function NewClass() {
   const navigate = useNavigate();
+  const { openBuyCredits } = useBuyCredits();
   const [step, setStep] = useState<1 | 2>(1);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
   const [yearGrade, setYearGrade] = useState("");
   const [subject, setSubject] = useState("");
-  
+  const [isRegistration, setIsRegistration] = useState(false);
+
   const [pasted, setPasted] = useState("");
   const [names, setNames] = useState<string[]>([]);
   const [genders, setGenders] = useState<("male" | "female" | null)[]>([]);
+  // Parallel to `names` — carries the imported marksheet for that student, or
+  // null when they came from a plain roster. Kept in step with every edit below.
+  const [reports, setReports] = useState<(StudentReport | null)[]>([]);
+  const [reportYear, setReportYear] = useState<string>("");
   const [dragOver, setDragOver] = useState(false);
   const [pendingCrop, setPendingCrop] = useState<File | null>(null);
 
   const addNames = (extracted: string[]) => {
     setNames((prev) => [...prev, ...extracted]);
     setGenders((prev) => [...prev, ...extracted.map(() => null)]);
+    setReports((prev) => [...prev, ...extracted.map(() => null)]);
   };
 
   // Listen for paste anywhere on the page while on step 1
@@ -104,10 +146,50 @@ export default function NewClass() {
     e.preventDefault();
     setDragOver(false);
     const file = e.dataTransfer.files?.[0];
-    if (file) handleFile(file);
+    if (!file) return;
+    if (file.type === "application/pdf" && isRegistration) handleReportPdf(file);
+    else handleFile(file);
+  };
+
+  // Registration classes only: pull the whole form's marksheet out of a school
+  // MIS term report (one page per student).
+  const handleReportPdf = async (file: File) => {
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("extract-reports", {
+        body: { fileBase64: await fileToBase64(file), mimeType: file.type || "application/pdf" },
+      });
+      if (handleInsufficientCredits({ data, error }, openBuyCredits)) return;
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      const students: StudentReport[] = data?.students ?? [];
+      if (students.length === 0) {
+        toast.error("No student reports found in that PDF.");
+        return;
+      }
+      setReportYear(String(data?.year ?? ""));
+      setNames((p) => [...p, ...students.map((s) => s.name)]);
+      setGenders((p) => [...p, ...students.map(() => null)]);
+      setReports((p) => [...p, ...students]);
+      if (!name.trim() && data?.form) setName(String(data.form));
+      setStep(2);
+
+      const subjectCount = new Set(students.flatMap((s) => s.subjects.map((x) => x.name))).size;
+      toast.success(`Found ${students.length} students and ${subjectCount} subjects`);
+    } catch (e: any) {
+      toast.error(e.message ?? "Could not read that report");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleFile = async (file: File) => {
+    if (file.type === "application/pdf") {
+      if (isRegistration) return handleReportPdf(file);
+      toast.info("PDF reports are only imported for registration classes. Tick “This is a registration class” first.");
+      return;
+    }
     setBusy(true);
     try {
       let body: any = {};
@@ -159,6 +241,53 @@ export default function NewClass() {
     }
   };
 
+  // Summary rows and page furniture that must never become a marksheet column,
+  // in case they slip through the extractor.
+  const NOT_A_SUBJECT = /^(total|average\s*%?|promotion result|days absent|extra-?curricular|form teacher|head|curriculum|report)\b/i;
+
+  // Union of every (subject, term) pair across all imported students — students
+  // don't all take the same subjects, so each becomes one marksheet column.
+  const buildMarksheet = () => {
+    const cols = new Map<string, { subject: string; term: string; classAverage: number | null; hasMark: boolean }>();
+    reports.forEach((r) => {
+      r?.subjects?.forEach((sub) => {
+        const subjectName = (sub.name ?? "").trim();
+        if (!subjectName || NOT_A_SUBJECT.test(subjectName)) return;
+        sub.marks?.forEach((mk) => {
+          const term = normaliseTerm(mk.term, reportYear);
+          const key = `${subjectName}||${term}`;
+          const existing = cols.get(key);
+          const avg = num(mk.form_average);
+          const hasMark = num(mk.student_mark) !== null;
+          if (!existing) cols.set(key, { subject: subjectName, term, classAverage: avg, hasMark });
+          else {
+            if (existing.classAverage === null && avg !== null) existing.classAverage = avg;
+            if (hasMark) existing.hasMark = true;
+          }
+        });
+      });
+    });
+    // A column with no mark for anyone and no form average carries nothing —
+    // usually a non-subject line that was misread as one. Drop it rather than
+    // leave an empty column in the teacher's marksheet.
+    Array.from(cols.entries()).forEach(([key, c]) => {
+      if (!c.hasMark && c.classAverage === null) cols.delete(key);
+    });
+    // Order by term, then by first appearance of the subject in the report.
+    const subjectOrder: string[] = [];
+    reports.forEach((r) => r?.subjects?.forEach((s) => {
+      const n = (s.name ?? "").trim();
+      if (n && !subjectOrder.includes(n)) subjectOrder.push(n);
+    }));
+    return Array.from(cols.values()).sort((a, b) => {
+      if (a.term !== b.term) return a.term.localeCompare(b.term);
+      return subjectOrder.indexOf(a.subject) - subjectOrder.indexOf(b.subject);
+    });
+  };
+
+  const marksheetCols = isRegistration ? buildMarksheet() : [];
+  const importedCount = reports.filter(Boolean).length;
+
   const create = async () => {
     if (!name.trim()) {
       toast.error("Please give the class a name");
@@ -172,22 +301,96 @@ export default function NewClass() {
     try {
       const { data: u } = await supabase.auth.getUser();
       const teacherId = u.user!.id;
+
+      const cols = isRegistration ? buildMarksheet() : [];
+      // Land a registration class on the most recent term the report covers, so
+      // the class opens showing the term the teacher is actually writing about.
+      const latestTerm = cols.length ? cols.map((c) => c.term).sort().slice(-1)[0] : null;
+
       const { data: cls, error } = await supabase
         .from("classes")
-        .insert({ teacher_id: teacherId, name, year_grade: yearGrade || null, subject: subject || null, active_term: '2026 Term 1' })
+        .insert({
+          teacher_id: teacherId,
+          name,
+          year_grade: yearGrade || null,
+          subject: subject || null,
+          is_registration: isRegistration,
+          active_term: latestTerm ?? "2026 Term 1",
+        })
         .select()
         .single();
       if (error) throw error;
-      const rows = names.map((n, i) => ({
-        class_id: cls.id,
-        teacher_id: teacherId,
-        name: n,
-        position: i,
-        overrides: genders[i] ? { gender: genders[i] } : {},
-      }));
-      const { error: sErr } = await supabase.from("students").insert(rows);
+
+      const rows = names.map((n, i) => {
+        const rep = reports[i];
+        return {
+          class_id: cls.id,
+          teacher_id: teacherId,
+          name: n,
+          position: i,
+          overrides: genders[i] ? { gender: genders[i] } : {},
+          days_absent: rep ? num(rep.days_absent) : null,
+          extracurricular: rep?.extracurricular?.trim() || null,
+        };
+      });
+      const { data: createdStudents, error: sErr } = await supabase
+        .from("students")
+        .insert(rows)
+        .select("id, position");
       if (sErr) throw sErr;
-      toast.success("Class created");
+
+      if (cols.length && createdStudents?.length) {
+        const byPosition = new Map<number, string>();
+        createdStudents.forEach((s: any) => byPosition.set(s.position, s.id));
+
+        const { data: createdAssessments, error: aErr } = await supabase
+          .from("assessments")
+          .insert(cols.map((c, i) => ({
+            class_id: cls.id,
+            teacher_id: teacherId,
+            name: c.subject,
+            description: c.subject,
+            term: c.term,
+            max_marks: 100,
+            weight: 1,
+            position: i,
+            class_average: c.classAverage,
+          })))
+          .select("id, name, term");
+        if (aErr) throw aErr;
+
+        const assessmentId = new Map<string, string>();
+        (createdAssessments ?? []).forEach((a: any) => assessmentId.set(`${a.name}||${a.term}`, a.id));
+
+        const markRows: any[] = [];
+        reports.forEach((rep, i) => {
+          if (!rep) return;
+          const studentId = byPosition.get(i);
+          if (!studentId) return;
+          rep.subjects?.forEach((sub) => {
+            sub.marks?.forEach((mk) => {
+              const raw = num(mk.student_mark);
+              if (raw === null) return; // blank cell stays blank — never a zero
+              const aid = assessmentId.get(`${(sub.name ?? "").trim()}||${normaliseTerm(mk.term, reportYear)}`);
+              if (!aid) return;
+              markRows.push({
+                assessment_id: aid,
+                student_id: studentId,
+                teacher_id: teacherId,
+                raw_mark: raw,
+                status: "graded",
+              });
+            });
+          });
+        });
+
+        for (let i = 0; i < markRows.length; i += 500) {
+          const { error: mErr } = await supabase.from("assessment_marks").insert(markRows.slice(i, i + 500));
+          if (mErr) throw mErr;
+        }
+      }
+
+      toast.success(isRegistration && cols.length ? "Registration class created with marksheet" : "Class created");
       navigate(`/classes/${cls.id}`);
     } catch (e: any) {
       toast.error(e.message ?? "Failed");
@@ -218,13 +421,59 @@ export default function NewClass() {
             <Label htmlFor="subject">Subject (optional)</Label>
             <Input id="subject" placeholder="English" value={subject} onChange={(e) => setSubject(e.target.value)} />
           </div>
+          <label className="flex items-start gap-2.5 cursor-pointer rounded-md border border-border bg-card/50 p-3">
+            <Checkbox
+              checked={isRegistration}
+              onCheckedChange={(v) => setIsRegistration(!!v)}
+              className="mt-0.5"
+            />
+            <span className="text-sm">
+              <span className="font-medium">This is a registration class</span>
+              <span className="block text-xs text-muted-foreground mt-0.5">
+                Also called a form or home group. Comments cover the whole child across every
+                subject, and you can import the full marksheet from a school report PDF.
+              </span>
+            </span>
+          </label>
         </Card>
 
         <Card className="p-6 space-y-4">
           <h2 className="font-display text-xl">Roster</h2>
           {step === 1 ? (
             <>
+              {isRegistration && (
+                <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <FileText className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium">Import from a term report PDF</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Upload the report your school's system produces for the whole form (one page
+                        per student). We'll pull out every student, every subject and their marks for
+                        each term, and build the marksheet for you.
+                      </p>
+                    </div>
+                  </div>
+                  <label className="block">
+                    <Button type="button" variant="default" size="sm" disabled={busy} asChild>
+                      <span>
+                        {busy ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />}
+                        {busy ? "Reading report…" : "Upload report PDF"}
+                      </span>
+                    </Button>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="application/pdf,.pdf"
+                      disabled={busy}
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleReportPdf(f); e.currentTarget.value = ""; }}
+                    />
+                  </label>
+                </div>
+              )}
+
               <p className="text-sm text-muted-foreground">
+                {isRegistration ? "Or build the roster by hand — " : ""}
                 Snip your class list and paste it here (Ctrl/Cmd+V), drag in an image, or upload a CSV. AI extracts the names for you to review.
               </p>
               <div
@@ -264,7 +513,7 @@ export default function NewClass() {
                         <input
                           type="file"
                           className="hidden"
-                          accept="image/*,.csv,.txt,.tsv"
+                          accept={isRegistration ? "image/*,.csv,.txt,.tsv,application/pdf,.pdf" : "image/*,.csv,.txt,.tsv"}
                           disabled={busy}
                           onChange={(e) => {
                             const f = e.target.files?.[0];
@@ -294,6 +543,19 @@ export default function NewClass() {
           ) : (
             <>
               <p className="text-sm text-muted-foreground">Review names, fix any spelling mistakes, and set gender for accurate pronouns. {names.length} students.</p>
+              {marksheetCols.length > 0 && (
+                <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3 text-sm">
+                  <p className="font-medium">Marksheet ready to import</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {new Set(marksheetCols.map((c) => c.subject)).size} subjects across{" "}
+                    {new Set(marksheetCols.map((c) => c.term)).size} terms ({marksheetCols.length} columns)
+                    for {importedCount} students. Blank cells stay blank — nothing is guessed.
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Check it on the Marksheet page after creating, then correct anything the import misread.
+                  </p>
+                </div>
+              )}
               <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                 {names.map((n, i) => (
                   <div key={i} className="flex gap-2 items-center">
@@ -319,13 +581,18 @@ export default function NewClass() {
                     <Button variant="ghost" size="icon" onClick={() => {
                       setNames((p) => p.filter((_, idx) => idx !== i));
                       setGenders((p) => p.filter((_, idx) => idx !== i));
+                      setReports((p) => p.filter((_, idx) => idx !== i));
                     }}>
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
                 ))}
               </div>
-              <Button variant="outline" size="sm" onClick={() => { setNames((p) => [...p, ""]); setGenders((p) => [...p, null]); }} className="w-full">
+              <Button variant="outline" size="sm" onClick={() => {
+                setNames((p) => [...p, ""]);
+                setGenders((p) => [...p, null]);
+                setReports((p) => [...p, null]);
+              }} className="w-full">
                 <Plus className="w-4 h-4 mr-1.5" />Add student
               </Button>
               <div className="flex gap-2 pt-2">

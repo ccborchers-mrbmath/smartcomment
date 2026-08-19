@@ -14,6 +14,7 @@ type ClassRow = {
   year_grade: string | null;
   subject: string | null;
   term: string | null;
+  is_registration: boolean;
   created_at: string;
   student_count?: number;
 };
@@ -131,7 +132,7 @@ export default function Dashboard() {
     (async () => {
       const { data: cls } = await supabase
         .from("classes")
-        .select("id, name, year_grade, subject, term, created_at")
+        .select("id, name, year_grade, subject, term, is_registration, created_at")
         .order("created_at", { ascending: false });
       const ids = (cls ?? []).map((c) => c.id);
       let counts: Record<string, number> = {};
@@ -193,6 +194,11 @@ export default function Dashboard() {
                     <p className="text-sm text-muted-foreground mt-1">
                       {[c.year_grade, c.subject, c.term].filter(Boolean).join(" · ") || "—"}
                     </p>
+                    {c.is_registration && (
+                      <span className="inline-block mt-1.5 rounded-md border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-accent-foreground">
+                        Registration
+                      </span>
+                    )}
                   </div>
                   <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
                 </div>

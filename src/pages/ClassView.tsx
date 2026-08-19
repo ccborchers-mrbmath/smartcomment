@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, ArrowRight, Plus, Settings, Sparkles, Loader2, Trash2, Pencil, Check, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Settings, Sparkles, Loader2, Trash2, Pencil, Check, AlertTriangle, Users } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,7 +17,7 @@ import { useBuyCredits, handleInsufficientCredits } from "@/components/BuyCredit
 
 const TERMS = ["2026 Term 1", "2026 Term 2", "2026 Term 3", "2026 Term 4"] as const;
 
-type Klass = { id: string; name: string; year_grade: string | null; subject: string | null; term: string | null; active_term: string | null; requirements: any };
+type Klass = { id: string; name: string; year_grade: string | null; subject: string | null; term: string | null; active_term: string | null; requirements: any; is_registration: boolean };
 type Student = { id: string; name: string; position: number; overrides: any; included_terms: string[] };
 
 export default function ClassView() {
@@ -41,6 +41,9 @@ export default function ClassView() {
       const { data: c } = await supabase.from("classes").select("*").eq("id", id).single();
       setKlass(c);
       setReqs(c?.requirements ?? {});
+      // A registration class exists to draw on the imported marksheet, so lead
+      // with marks switched on rather than making the teacher find the toggle.
+      if (c?.is_registration) setIncludeMarks(true);
       const { data: s } = await supabase.from("students").select("id, name, position, overrides, included_terms").eq("class_id", id).order("position");
       setStudents((s ?? []) as Student[]);
       const ids = (s ?? []).map((x) => x.id);
@@ -181,7 +184,14 @@ export default function ClassView() {
       </Button>
       <div className="flex items-end justify-between mb-8 gap-4 flex-wrap">
         <div>
-          <h1 className="font-display text-4xl">{klass.name}</h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="font-display text-4xl">{klass.name}</h1>
+            {klass.is_registration && (
+              <span className="inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-xs font-medium text-accent-foreground">
+                <Users className="w-3 h-3" />Registration class
+              </span>
+            )}
+          </div>
           <div className="flex flex-wrap items-center gap-2 mt-2">
             <p className="text-muted-foreground">
               {[klass.year_grade, klass.subject].filter(Boolean).join(" · ") || "—"}
