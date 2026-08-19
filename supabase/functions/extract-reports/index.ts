@@ -81,10 +81,12 @@ function positionalRows(content: string): string {
 // Byte-exact latin1. NOT the same as TextDecoder("latin1"), whose label maps
 // to windows-1252 and remaps 0x80-0x9F — we need offsets to match bytes 1:1.
 function latin1(bytes: Uint8Array): string {
+  // 1KB chunks via apply: measurably faster than spreading 32KB at a time, and
+  // far below any engine's argument-count ceiling.
   let s = "";
-  const CHUNK = 0x8000;
+  const CHUNK = 1024;
   for (let i = 0; i < bytes.length; i += CHUNK) {
-    s += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK) as unknown as number[]);
   }
   return s;
 }
@@ -272,12 +274,31 @@ serve(async (req) => {
     const t0 = Date.now();
     const pdfBytes = Uint8Array.from(atob(fileBase64), (c) => c.charCodeAt(0));
     let pages: string[] = [];
+    let layerError: string | null = null;
     try {
       pages = await positionalPages(pdfBytes);
     } catch (e) {
-      console.warn("extract-reports: positional text layer failed, falling back to vision only", e);
+      // Do NOT quietly drop to the vision path here. That path sends the whole
+      // PDF in one call, which is the slow shape this function was rewritten to
+      // avoid — swallowing the error would silently restore it.
+      layerError = e instanceof Error ? e.message : String(e);
+      console.error("extract-reports: positional text layer threw", layerError);
     }
-    console.log(`extract-reports: ${pages.length} text-layer pages in ${Date.now() - t0}ms`);
+    console.log(`extract-reports: ${pages.length} text-layer pages in ${Date.now() - t0}ms${layerError ? ` (layer error: ${layerError})` : ""}`);
+
+    // A big PDF with no usable text layer would need the whole file in one
+    // vision call. Refuse with something actionable rather than stalling until
+    // the platform kills us — a killed function surfaces in the browser as an
+    // opaque CORS error, which is close to undebuggable for the teacher.
+    const MAX_VISION_BYTES = 1_500_000;
+    if (pages.length === 0 && pdfBytes.length > MAX_VISION_BYTES) {
+      return new Response(
+        JSON.stringify({
+          error: `That PDF has no readable text layer and is too large (${Math.round(pdfBytes.length / 1024)}KB) to read as images in one pass. Split it into smaller files and import them one at a time.`,
+        }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     let year = "", form = "", terms: string[] = [], students: any[] = [];
     const usages: any[] = [];
