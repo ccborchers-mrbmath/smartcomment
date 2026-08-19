@@ -213,11 +213,18 @@ export default function ClassMarksheet() {
     return Math.round((num / den) * 100);
   };
 
+  // Every term present on the sheet, not just the ones in the fixed TERMS list —
+  // an imported marksheet can carry terms from another academic year.
   const termsUsed = useMemo(() => {
     const set = new Set<string>();
     assessments.forEach((a) => { if (a.term) set.add(a.term); });
-    return TERMS.filter((t) => set.has(t));
+    return Array.from(set).sort();
   }, [assessments]);
+
+  const termOptions = useMemo(
+    () => Array.from(new Set<string>([...TERMS, ...termsUsed])).sort(),
+    [termsUsed]
+  );
 
   const downloadCsv = () => {
     if (!klass) return;
@@ -327,7 +334,7 @@ export default function ClassMarksheet() {
                       <div className="flex gap-1">
                         <Select value={a.term ?? undefined} onValueChange={(v) => { updateAssessment(a.id, { term: v }); commitAssessment(a.id, { term: v }); }}>
                           <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Term" /></SelectTrigger>
-                          <SelectContent>{TERMS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                          <SelectContent>{termOptions.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                       <div className="grid grid-cols-3 gap-1">

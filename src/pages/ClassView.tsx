@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import AppShell from "@/components/AppShell";
@@ -34,6 +34,12 @@ export default function ClassView() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [includeMarks, setIncludeMarks] = useState(false);
   const [markTerms, setMarkTerms] = useState<string[]>([...TERMS]);
+  // Terms that actually exist in this class's data. An imported marksheet can
+  // carry terms from another academic year, which the fixed TERMS list above
+  // doesn't know about — deriving these keeps such marks from being silently
+  // dropped from generation.
+  const [assessmentTerms, setAssessmentTerms] = useState<string[]>([]);
+  const [noteTerms, setNoteTerms] = useState<string[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -56,7 +62,14 @@ export default function ClassView() {
           (grouped[i.student_id] ||= []).push({ term: i.term || "2026 Term 2", body });
         });
         setNotesByStudent(grouped);
+        setNoteTerms(Array.from(new Set((ins ?? []).map((i: any) => i.term).filter(Boolean))) as string[]);
       }
+      const { data: asmts } = await supabase.from("assessments").select("term").eq("class_id", id);
+      const aTerms = Array.from(new Set((asmts ?? []).map((a: any) => a.term).filter(Boolean))).sort() as string[];
+      setAssessmentTerms(aTerms);
+      // Every term the marksheet actually covers is on by default — a form
+      // teacher's comment is about the shape of the whole year.
+      if (aTerms.length) setMarkTerms(aTerms);
     })();
   }, [id]);
 
@@ -175,6 +188,14 @@ export default function ClassView() {
     return { status: missing.length === 0 ? ("ok" as const) : ("partial" as const), missing };
   };
 
+  // Offer the terms the marksheet actually covers, not a fixed year's worth.
+  const markTermOptions = assessmentTerms.length ? assessmentTerms : [...TERMS];
+  const noteTermOptions = useMemo(() => {
+    const set = new Set<string>([...TERMS, ...noteTerms]);
+    if (klass?.active_term) set.add(klass.active_term);
+    return Array.from(set).sort();
+  }, [noteTerms, klass?.active_term]);
+
   if (!klass) return <AppShell><p className="text-muted-foreground">Loading…</p></AppShell>;
 
   return (
@@ -202,7 +223,7 @@ export default function ClassView() {
                 <SelectValue placeholder="Select term" />
               </SelectTrigger>
               <SelectContent>
-                {TERMS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                {noteTermOptions.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -223,8 +244,8 @@ export default function ClassView() {
           <div className="rounded-md border border-border bg-card/50 px-3 py-2">
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">Include notes from:</p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-              {TERMS.map((t) => {
-                const checked = (students[0]?.included_terms ?? TERMS).includes(t);
+              {noteTermOptions.map((t) => {
+                const checked = (students[0]?.included_terms ?? noteTermOptions).includes(t);
                 return (
                   <label key={t} className="flex items-center gap-1.5 text-xs cursor-pointer">
                     <Checkbox
@@ -246,7 +267,7 @@ export default function ClassView() {
               <>
                 <p className="text-[11px] uppercase tracking-wider text-muted-foreground mt-2 mb-1.5">Marks from terms:</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                  {TERMS.map((t) => {
+                  {markTermOptions.map((t) => {
                     const checked = markTerms.includes(t);
                     return (
                       <label key={t} className="flex items-center gap-1.5 text-xs cursor-pointer">
