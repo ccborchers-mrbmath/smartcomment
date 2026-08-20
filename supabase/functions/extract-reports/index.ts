@@ -15,7 +15,7 @@
 // in. The PDF itself still goes along for scanned files and as a visual check.
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { logUsage, geminiUsage } from "../_shared/usage.ts";
+import { logUsage } from "../_shared/usage.ts";
 import { checkEntitlement } from "../_shared/entitlement.ts";
 
 const corsHeaders = {
@@ -78,15 +78,24 @@ function positionalRows(content: string): string {
     .join("\n");
 }
 
-// Best-effort text layer with coordinates. Empty string for scanned PDFs or
-// any structure this deliberately small parser doesn't understand — the model
-// then falls back to reading the PDF visually.
-async function positionalText(pdf: Uint8Array): Promise<string> {
+// Byte-exact latin1. NOT the same as TextDecoder("latin1"), whose label maps
+// to windows-1252 and remaps 0x80-0x9F — we need offsets to match bytes 1:1.
+function latin1(bytes: Uint8Array): string {
+  // 1KB chunks via apply: measurably faster than spreading 32KB at a time, and
+  // far below any engine's argument-count ceiling.
   let s = "";
-  const CHUNK = 0x8000;
-  for (let i = 0; i < pdf.length; i += CHUNK) {
-    s += String.fromCharCode(...pdf.subarray(i, i + CHUNK));
+  const CHUNK = 1024;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK) as unknown as number[]);
   }
+  return s;
+}
+
+// Best-effort text layer with coordinates, one entry per page. Empty for
+// scanned PDFs or any structure this deliberately small parser doesn't
+// understand — the model then falls back to reading the PDF visually.
+async function positionalPages(pdf: Uint8Array): Promise<string[]> {
+  const s = latin1(pdf);
 
   const pages: string[] = [];
   let idx = 0;
@@ -111,13 +120,13 @@ async function positionalText(pdf: Uint8Array): Promise<string> {
 
     const out = await inflate(pdf.subarray(start, dataEnd));
     if (!out) continue;
-    const content = new TextDecoder("latin1").decode(out);
+    const content = latin1(out);
     if (!content.includes("Tj") && !content.includes("TJ")) continue;
     const rows = positionalRows(content);
     if (rows.trim()) pages.push(rows);
   }
 
-  return pages.map((p, i) => `--- PAGE ${i + 1} ---\n${p}`).join("\n\n");
+  return pages;
 }
 
 const SYSTEM_PROMPT = `You extract structured data from a school term report PDF produced by a student management system (such as EdAdmin).
@@ -148,6 +157,98 @@ HOW TO READ THE MARKS TABLE — THIS IS THE PART THAT MATTERS MOST:
 
 Also return the academic year shown on the report (e.g. 2026), the form code, and the ordered term labels exactly as they head the columns (e.g. "Term 1", "Term 2", "Term 3").`;
 
+const RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    year: { type: "string" },
+    form: { type: "string" },
+    terms: { type: "array", items: { type: "string" } },
+    students: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          days_absent: { type: "string" },
+          promotion_result: { type: "string" },
+          extracurricular: { type: "string" },
+          subjects: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                marks: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      term: { type: "string" },
+                      student_mark: { type: "string" },
+                      form_average: { type: "string" },
+                    },
+                    required: ["term", "student_mark", "form_average"],
+                  },
+                },
+              },
+              required: ["name", "marks"],
+            },
+          },
+        },
+        required: ["name", "subjects"],
+      },
+    },
+  },
+  required: ["year", "terms", "students"],
+};
+
+interface Extraction {
+  year?: string;
+  form?: string;
+  terms?: string[];
+  students?: any[];
+}
+
+// One Gemini call. Each call covers only a handful of pages so neither the
+// request nor the generated JSON gets large enough to run past the edge
+// function's wall clock — sending the whole form in a single call is what
+// made this time out.
+async function callGemini(userParts: any[], label: string): Promise<Extraction> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 90_000);
+  try {
+    const res = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent",
+      {
+        method: "POST",
+        headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents: [{ role: "user", parts: userParts }],
+          generationConfig: { responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA },
+        }),
+      },
+    );
+    if (res.status === 429) throw new Error("rate_limited");
+    if (!res.ok) {
+      const t = await res.text();
+      console.error(`extract-reports ${label}: gemini ${res.status} ${t.slice(0, 500)}`);
+      throw new Error(`Gemini API: ${res.status}`);
+    }
+    const data = await res.json();
+    const raw = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
+    const parsed: Extraction = raw ? JSON.parse(raw) : {};
+    (parsed as any).__usage = data.usageMetadata;
+    return parsed;
+  } catch (e) {
+    if ((e as Error).name === "AbortError") throw new Error(`Timed out reading ${label}. Try splitting the report into smaller PDFs.`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -170,105 +271,112 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "No file provided" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    const t0 = Date.now();
     const pdfBytes = Uint8Array.from(atob(fileBase64), (c) => c.charCodeAt(0));
-    let layer = "";
+    let pages: string[] = [];
+    let layerError: string | null = null;
     try {
-      layer = await positionalText(pdfBytes);
+      pages = await positionalPages(pdfBytes);
     } catch (e) {
-      console.warn("extract-reports: positional text layer failed, falling back to vision only", e);
+      // Do NOT quietly drop to the vision path here. That path sends the whole
+      // PDF in one call, which is the slow shape this function was rewritten to
+      // avoid — swallowing the error would silently restore it.
+      layerError = e instanceof Error ? e.message : String(e);
+      console.error("extract-reports: positional text layer threw", layerError);
     }
-    console.log(`extract-reports: positional layer ${layer ? `${layer.length} chars` : "unavailable"}`);
+    console.log(`extract-reports: ${pages.length} text-layer pages in ${Date.now() - t0}ms${layerError ? ` (layer error: ${layerError})` : ""}`);
 
-    const markSchema = {
-      type: "object",
-      properties: {
-        term: { type: "string" },
-        student_mark: { type: "string" },
-        form_average: { type: "string" },
-      },
-      required: ["term", "student_mark", "form_average"],
-    };
-
-    const userParts: any[] = [
-      {
-        text: layer
-          ? "Extract every student page from this term report.\n\nA POSITIONAL TEXT LAYER extracted from the PDF follows. Each line is one horizontal row of the page; each cell shows its exact x coordinate. Use these x coordinates to decide which term/column every number belongs to. Remember that a row with fewer numbers than the full set means some cells are genuinely blank — return \"\" for those and never shift a value across."
-          : "Extract every student page from this term report. Align each number to its column by its position on the page, and return \"\" for any cell that is blank.",
-      },
-      { inline_data: { mime_type: mimeType ?? "application/pdf", data: fileBase64 } },
-    ];
-    if (layer) userParts.push({ text: `POSITIONAL TEXT LAYER (authoritative for values and column positions):\n\n${layer}` });
-
-    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent", {
-      method: "POST",
-      headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ role: "user", parts: userParts }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "object",
-            properties: {
-              year: { type: "string" },
-              form: { type: "string" },
-              terms: { type: "array", items: { type: "string" } },
-              students: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    name: { type: "string" },
-                    days_absent: { type: "string" },
-                    promotion_result: { type: "string" },
-                    extracurricular: { type: "string" },
-                    subjects: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          name: { type: "string" },
-                          marks: { type: "array", items: markSchema },
-                        },
-                        required: ["name", "marks"],
-                      },
-                    },
-                  },
-                  required: ["name", "subjects"],
-                },
-              },
-            },
-            required: ["year", "terms", "students"],
-          },
-        },
-      }),
-    });
-
-    if (res.status === 429) {
-      return new Response(JSON.stringify({ error: "Rate limit reached. Try again shortly." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-    if (!res.ok) {
-      const t = await res.text();
-      console.error("extract-reports gemini error", res.status, t);
-      throw new Error(`Gemini API: ${res.status}`);
+    // A big PDF with no usable text layer would need the whole file in one
+    // vision call. Refuse with something actionable rather than stalling until
+    // the platform kills us — a killed function surfaces in the browser as an
+    // opaque CORS error, which is close to undebuggable for the teacher.
+    const MAX_VISION_BYTES = 1_500_000;
+    if (pages.length === 0 && pdfBytes.length > MAX_VISION_BYTES) {
+      return new Response(
+        JSON.stringify({
+          error: `That PDF has no readable text layer and is too large (${Math.round(pdfBytes.length / 1024)}KB) to read as images in one pass. Split it into smaller files and import them one at a time.`,
+        }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
-    const data = await res.json();
-    const raw = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
-    const parsed = raw ? JSON.parse(raw) : { year: "", form: "", terms: [], students: [] };
+    let year = "", form = "", terms: string[] = [], students: any[] = [];
+    const usages: any[] = [];
+
+    if (pages.length > 0) {
+      // Text-layer path: batch the pages into small calls and run a few at a
+      // time. The PDF bytes are not sent — the coordinates carry everything
+      // the model needs, and leaving the file out keeps each call fast.
+      const GROUP = 4;
+      const CONCURRENCY = 3;
+      const groups: { from: number; text: string }[] = [];
+      for (let i = 0; i < pages.length; i += GROUP) {
+        groups.push({
+          from: i,
+          text: pages.slice(i, i + GROUP).map((p, j) => `--- PAGE ${i + j + 1} ---\n${p}`).join("\n\n"),
+        });
+      }
+
+      const results: Extraction[] = new Array(groups.length);
+      for (let i = 0; i < groups.length; i += CONCURRENCY) {
+        const wave = groups.slice(i, i + CONCURRENCY);
+        const settled = await Promise.all(wave.map((g, k) =>
+          callGemini(
+            [{
+              text: `Extract every student page below. Each line is one horizontal row of a page; every cell carries its exact x coordinate. Use those x coordinates to decide which term/column each number belongs to. A row with fewer numbers than the full set means some cells are genuinely blank — return "" for those and never shift a value across.\n\n${g.text}`,
+            }],
+            `pages ${g.from + 1}-${Math.min(g.from + GROUP, pages.length)}`,
+          ).then((r) => ({ idx: i + k, r })),
+        ));
+        for (const { idx, r } of settled) results[idx] = r;
+      }
+
+      for (const r of results) {
+        if (!r) continue;
+        if (!year && r.year) year = r.year;
+        if (!form && r.form) form = r.form;
+        if (!terms.length && r.terms?.length) terms = r.terms;
+        if (r.students?.length) students.push(...r.students);
+        if ((r as any).__usage) usages.push((r as any).__usage);
+      }
+    } else {
+      // Scanned or unparseable PDF: one vision pass over the whole file.
+      const r = await callGemini(
+        [
+          { text: "Extract every student page from this term report. Align each number to its column by its position on the page, and return \"\" for any cell that is blank." },
+          { inline_data: { mime_type: mimeType ?? "application/pdf", data: fileBase64 } },
+        ],
+        "whole document",
+      );
+      year = r.year ?? ""; form = r.form ?? ""; terms = r.terms ?? []; students = r.students ?? [];
+      if ((r as any).__usage) usages.push((r as any).__usage);
+    }
+
+    console.log(`extract-reports: ${students.length} students in ${Date.now() - t0}ms`);
 
     await logUsage({
       userId: user.id,
       functionName: "extract-reports",
       model: "google/gemini-3.1-pro-preview",
-      units: parsed.students?.length ?? 0,
-      usage: geminiUsage(data.usageMetadata),
-      metadata: { students: parsed.students?.length ?? 0, terms: parsed.terms?.length ?? 0, positional_layer: !!layer },
+      units: students.length,
+      usage: {
+        prompt_tokens: usages.reduce((s, u) => s + (u?.promptTokenCount ?? 0), 0),
+        completion_tokens: usages.reduce((s, u) => s + (u?.candidatesTokenCount ?? 0), 0),
+      },
+      metadata: { students: students.length, pages: pages.length, calls: usages.length, positional_layer: pages.length > 0 },
     });
 
-    return new Response(JSON.stringify({ ...parsed, positional_layer: !!layer }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(
+      JSON.stringify({ year, form, terms, students, positional_layer: pages.length > 0 }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (e) {
     console.error(e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "unknown" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const msg = e instanceof Error ? e.message : "unknown";
+    const status = msg === "rate_limited" ? 429 : 500;
+    return new Response(
+      JSON.stringify({ error: msg === "rate_limited" ? "Rate limit reached. Try again shortly." : msg }),
+      { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
 });
