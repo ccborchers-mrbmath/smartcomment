@@ -27,14 +27,38 @@ const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
+// Per-attempt ceiling. A DecompressionStream fed data that is not deflate is
+// supposed to reject; when it instead leaves the read pending, nothing else in
+// this function can time it out, and the whole invocation sits there until the
+// platform kills it at its wall-clock limit with no output at all.
+const INFLATE_TIMEOUT_MS = 3_000;
+
+async function inflateAs(bytes: Uint8Array, format: "deflate" | "deflate-raw"): Promise<Uint8Array | null> {
+  try {
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream(format));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
 async function inflate(bytes: Uint8Array): Promise<Uint8Array | null> {
-  for (const format of ["deflate", "deflate-raw"] as const) {
-    try {
-      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream(format));
-      return new Uint8Array(await new Response(stream).arrayBuffer());
-    } catch {
-      // try the next format
-    }
+  if (bytes.length === 0) return null;
+
+  // A PDF carries JPEG and font streams beside its FlateDecode content streams.
+  // Every zlib stream has CM=8 in the low nibble of its first byte, so this
+  // skips the image data rather than handing hundreds of KB to the decompressor
+  // twice over. On this sample that is 243KB of JPEG never touched at all.
+  const formats: ("deflate" | "deflate-raw")[] = (bytes[0] & 0x0f) === 8
+    ? ["deflate", "deflate-raw"]
+    : ["deflate-raw"];
+
+  for (const format of formats) {
+    const out = await Promise.race([
+      inflateAs(bytes, format),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), INFLATE_TIMEOUT_MS)),
+    ]);
+    if (out) return out;
   }
   return null;
 }
@@ -251,6 +275,9 @@ async function callGemini(userParts: any[], label: string): Promise<Extraction> 
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  // Logged before any work: an invocation killed at the wall-clock limit prints
+  // nothing at all, so the absence of even this line is itself the diagnosis.
+  console.log("extract-reports: request received");
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -273,10 +300,21 @@ serve(async (req) => {
 
     const t0 = Date.now();
     const pdfBytes = Uint8Array.from(atob(fileBase64), (c) => c.charCodeAt(0));
+    console.log(`extract-reports: decoded ${pdfBytes.length} PDF bytes in ${Date.now() - t0}ms`);
     let pages: string[] = [];
     let layerError: string | null = null;
     try {
-      pages = await positionalPages(pdfBytes);
+      // Hard ceiling on the parse as a whole. It runs in tens of milliseconds
+      // when it runs at all, so anything approaching this is a stall, and a
+      // stall must surface as an error the teacher can see rather than as a
+      // silent kill six minutes later.
+      const PARSE_BUDGET_MS = 20_000;
+      const parsed = await Promise.race([
+        positionalPages(pdfBytes),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), PARSE_BUDGET_MS)),
+      ]);
+      if (parsed === null) throw new Error(`text-layer parse exceeded ${PARSE_BUDGET_MS}ms`);
+      pages = parsed;
     } catch (e) {
       // Do NOT quietly drop to the vision path here. That path sends the whole
       // PDF in one call, which is the slow shape this function was rewritten to
