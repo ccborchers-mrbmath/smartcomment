@@ -277,12 +277,30 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   // Logged before any work: an invocation killed at the wall-clock limit prints
   // nothing at all, so the absence of even this line is itself the diagnosis.
+  const tStart = Date.now();
   console.log("extract-reports: request received");
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+
+    // Drain the upload BEFORE any outbound call. Reading it after the auth and
+    // entitlement round-trips leaves a ~400KB body still arriving while this
+    // worker waits on other sockets, and that inbound read then never
+    // completes: the invocation logs "request received", nothing more, and is
+    // killed minutes later — which reaches the browser as an opaque CORS
+    // error, because a killed worker never sends any headers at all.
+    const body = await req.json();
+    console.log(`extract-reports: body read in ${Date.now() - tStart}ms`);
+
+    const { fileBase64, mimeType } = body ?? {};
+    if (!fileBase64) {
+      return new Response(JSON.stringify({ error: "No file provided" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Authorise only after the body is in hand. Nothing is sent to the model
+    // before these two checks, so moving them down costs no safety.
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { headers: { Authorization: authHeader } } });
     const { data: userRes } = await supabase.auth.getUser();
     const user = userRes?.user;
@@ -292,11 +310,7 @@ serve(async (req) => {
 
     const ent = await checkEntitlement(user.id);
     if (ent instanceof Response) return ent;
-
-    const { fileBase64, mimeType } = await req.json();
-    if (!fileBase64) {
-      return new Response(JSON.stringify({ error: "No file provided" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
+    console.log(`extract-reports: authorised in ${Date.now() - tStart}ms`);
 
     const t0 = Date.now();
     const pdfBytes = Uint8Array.from(atob(fileBase64), (c) => c.charCodeAt(0));
