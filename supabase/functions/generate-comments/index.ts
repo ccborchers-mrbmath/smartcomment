@@ -29,7 +29,6 @@ serve(async (req) => {
     if (!Array.isArray(studentIds) || studentIds.length === 0) {
       return new Response(JSON.stringify({ error: "No students" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    const wantMarks = !!includeMarks;
     const allowedMarkTerms: string[] = Array.isArray(markTerms) ? markTerms : [];
 
     // Load students + verify ownership
@@ -42,6 +41,16 @@ serve(async (req) => {
     }
     const classId = students[0].class_id;
     const { data: cls } = await supabase.from("classes").select("*").eq("id", classId).single();
+
+    // A registration comment is meaningless without the marksheet, so marks are
+    // on by default for those classes. Only "Generate all" on the class page
+    // sends includeMarks; generating from a student card or regenerating from
+    // the review page does not, and defaulting to false there silently produced
+    // comments with no academic content at all. Subject classes keep the
+    // explicit opt-in, since there the teacher's checkbox is a real choice.
+    const wantMarks = includeMarks === undefined || includeMarks === null
+      ? !!cls?.is_registration
+      : !!includeMarks;
     const { data: defaults } = await supabase
       .from("teacher_defaults")
       .select("requirements")
