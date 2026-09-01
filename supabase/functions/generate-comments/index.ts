@@ -219,13 +219,13 @@ serve(async (req) => {
 
       const picks: Pick[] = [];
       if (reserved) {
-        picks.push({ subject: reserved, kind: "commend", why: "reached an excellent standard this term" });
+        picks.push({ subject: reserved, kind: "commend", why: "excellent standard" });
       }
       for (const name of chosen) {
         const d = movement.get(name) ?? 0;
         picks.push(d > 0
-          ? { subject: name, kind: "commend", why: "has improved markedly since last term" }
-          : { subject: name, kind: "concern", why: "has fallen back since last term" });
+          ? { subject: name, kind: "commend", why: "improved on the previous term" }
+          : { subject: name, kind: "concern", why: "declined from the previous term" });
       }
       return picks;
     };
@@ -254,7 +254,10 @@ YOU ARE WRITING AS A REGISTRATION TEACHER (also called a form teacher or home gr
 
 HOW TO USE THE SUBJECT LIST:
 - Each student block carries a "SUBJECTS TO COMMENT ON" list. It has already been chosen for you against the school's rules. Name THOSE subjects and NO OTHERS. Do not survey the rest of the curriculum, and do not mention a subject merely because it appears in the teacher's notes as an aside.
+- Each entry gives you a FACT, not wording. Express it in your own prose; never copy the phrasing back.
 - "commend" means say something genuinely warm about that subject. "concern" means note it as an area needing attention and encourage the student to address it — measured and constructive, never harsh.
+- Every comparison here is against the previous term, and the reader already knows that. Do NOT restate the timeframe for each subject. Name it at most ONCE in the whole comment, and preferably not at all. Repeating "this Term" or "since last Term" sentence after sentence reads badly. Prefer "The improvement in Physical Sciences is noted with pleasure" over "she made an excellent improvement this Term".
+- Vary your sentence openings. Do not begin consecutive sentences with the student's name or with the same construction.
 - NEVER characterise the SIZE of a rise or fall. You are told only the direction, never the magnitude, so you cannot know whether a change was slight or severe. Do not write "slightly", "marginally", "significantly", "sharply", "dramatically" or any equivalent about a subject's movement. State that it has improved or fallen back, and leave it there.
 - Whenever you flag a subject as a concern, recommend that the student attends Help Sessions. Use that exact term, capitalised as "Help Sessions" — it is the school's formal name for its after-hours support, and no paraphrase is acceptable.
 - Recommend Help Sessions ONCE in the comment, even where several things point to them. Do not repeat the recommendation per subject.
