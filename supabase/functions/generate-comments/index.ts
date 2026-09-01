@@ -143,8 +143,9 @@ Voice & style — match the teacher's previous comments below. Be specific, warm
 ${reqs.policy ? `SCHOOL POLICY (HIGHEST PRIORITY — these rules from the school's official policy document MUST be followed exactly, and override any conflicting guidance below):\n${String(reqs.policy).slice(0, 8000)}\n\n` : ""}${styleText ? `TEACHER'S PREVIOUS COMMENTS (style reference):\n${styleText.slice(0, 6000)}\n\n` : ""}SCHOOL REQUIREMENTS:
 - Tone: ${reqs.tone || "warm and professional"}
 - Structure: ${reqs.structure || "strengths, areas for growth, next steps"}
-- Word range: ${reqs.minWords || 60}–${reqs.maxWords || 120} words
-${reqs.maxChars ? `- Hard character limit: ${reqs.maxChars}` : ""}
+- Length: ${reqs.minChars || 350}–${reqs.maxChars || 750} characters
+- The minimum length is a TARGET, NEVER A QUOTA. Write only what the teacher's notes and the marks actually support. If the evidence runs out at 300 characters, stop at 300 characters. NEVER pad, generalise, restate the same point in different words, or invent an observation in order to reach the minimum — a short comment grounded in real evidence is always better than a long one containing anything you made up.
+- The maximum is a hard ceiling. Do not exceed it.
 ${reqs.pronoun ? `- Refer to student in ${reqs.pronoun}` : ""}
 ${reqs.bannedPhrases ? `- Avoid these phrases: ${reqs.bannedPhrases}` : ""}
 ${reqs.mustInclude ? `- Must include: ${reqs.mustInclude}` : ""}

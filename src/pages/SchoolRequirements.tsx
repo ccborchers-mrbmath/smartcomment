@@ -16,9 +16,8 @@ const FIELDS: { key: string; label: string }[] = [
   { key: "policy", label: "School policy document" },
   { key: "tone", label: "Tone" },
   { key: "structure", label: "Structure" },
-  { key: "minWords", label: "Min words" },
-  { key: "maxWords", label: "Max words" },
-  { key: "maxChars", label: "Max chars" },
+  { key: "minChars", label: "Min characters" },
+  { key: "maxChars", label: "Max characters" },
   { key: "pronoun", label: "Pronoun usage" },
   { key: "bannedPhrases", label: "Banned phrases" },
   { key: "mustInclude", label: "Must include" },
@@ -267,9 +266,8 @@ export default function SchoolRequirements() {
         <Field label="Required structure" k="structure" reqs={reqs} setReqs={setReqs} locked={locked} toggle={toggleLock}
           input={<Input value={reqs.structure || ""} onChange={(e) => setReqs({ ...reqs, structure: e.target.value })} />} />
         <div className="grid grid-cols-3 gap-3">
-          <NumField k="minWords" label="Min words" reqs={reqs} setReqs={setReqs} locked={locked} toggle={toggleLock} />
-          <NumField k="maxWords" label="Max words" reqs={reqs} setReqs={setReqs} locked={locked} toggle={toggleLock} />
-          <NumField k="maxChars" label="Max chars" reqs={reqs} setReqs={setReqs} locked={locked} toggle={toggleLock} />
+          <NumField k="minChars" label="Min characters" reqs={reqs} setReqs={setReqs} locked={locked} toggle={toggleLock} />
+          <NumField k="maxChars" label="Max characters" reqs={reqs} setReqs={setReqs} locked={locked} toggle={toggleLock} />
         </div>
         <Field label="Pronoun usage" k="pronoun" reqs={reqs} setReqs={setReqs} locked={locked} toggle={toggleLock}
           input={<Input value={reqs.pronoun || ""} onChange={(e) => setReqs({ ...reqs, pronoun: e.target.value })} />} />

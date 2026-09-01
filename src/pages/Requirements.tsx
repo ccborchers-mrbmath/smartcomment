@@ -10,9 +10,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Loader2, Upload, FileText, Lock } from "lucide-react";
 import { toast } from "sonner";
 
+const CHARS_PER_WORD = 6;
+
+// Length is configured in characters; this is only a readability hint beside
+// the input, never used to constrain generation.
+function approxWords(chars: unknown): string {
+  const n = Number(chars);
+  if (!Number.isFinite(n) || n <= 0) return "—";
+  return `about ${Math.round(n / CHARS_PER_WORD)} words`;
+}
+
 const FIELD_LABELS: Record<string, string> = {
   policy: "School policy", tone: "Tone", structure: "Structure",
-  minWords: "Min words", maxWords: "Max words", maxChars: "Max chars",
+  minChars: "Min characters", maxChars: "Max characters",
   pronoun: "Pronoun usage", bannedPhrases: "Banned phrases",
   mustInclude: "Must include", notes: "Other notes",
 };
@@ -49,9 +59,12 @@ export default function Requirements() {
   const save = async () => {
     setSaving(true);
     const { data: u } = await supabase.auth.getUser();
+    // minWords/maxWords are retired in favour of character limits. Strip them on
+    // save so an old value can't sit in the JSON and contradict the new range.
+    const { minWords: _mw, maxWords: _xw, ...toSave } = reqs as Record<string, unknown>;
     const { error } = await supabase
       .from("teacher_defaults")
-      .upsert({ teacher_id: u.user!.id, requirements: reqs });
+      .upsert({ teacher_id: u.user!.id, requirements: toSave });
     setSaving(false);
     if (error) toast.error(error.message);
     else toast.success("Default requirements saved — applied to all classes");
@@ -175,19 +188,23 @@ export default function Requirements() {
           <Label htmlFor="structure">Required structure</Label>
           <Input id="structure" disabled={isLocked("structure")} placeholder="strengths → growth areas → next steps" value={isLocked("structure") ? (schoolReqs.structure || "") : (reqs.structure || "")} onChange={(e) => setReqs({ ...reqs, structure: e.target.value })} />
         </div>
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <Label htmlFor="min">Min words</Label>
-            <Input id="min" type="number" disabled={isLocked("minWords")} value={isLocked("minWords") ? (schoolReqs.minWords ?? "") : (reqs.minWords ?? "")} onChange={(e) => setReqs({ ...reqs, minWords: e.target.value ? Number(e.target.value) : null })} />
+        <div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="minchars">Min characters</Label>
+              <Input id="minchars" type="number" disabled={isLocked("minChars")} value={isLocked("minChars") ? (schoolReqs.minChars ?? "") : (reqs.minChars ?? "")} onChange={(e) => setReqs({ ...reqs, minChars: e.target.value ? Number(e.target.value) : null })} />
+              <p className="text-xs text-muted-foreground mt-1">{approxWords(isLocked("minChars") ? schoolReqs.minChars : reqs.minChars)}</p>
+            </div>
+            <div>
+              <Label htmlFor="maxchars">Max characters</Label>
+              <Input id="maxchars" type="number" disabled={isLocked("maxChars")} value={isLocked("maxChars") ? (schoolReqs.maxChars ?? "") : (reqs.maxChars ?? "")} onChange={(e) => setReqs({ ...reqs, maxChars: e.target.value ? Number(e.target.value) : null })} />
+              <p className="text-xs text-muted-foreground mt-1">{approxWords(isLocked("maxChars") ? schoolReqs.maxChars : reqs.maxChars)}</p>
+            </div>
           </div>
-          <div>
-            <Label htmlFor="max">Max words</Label>
-            <Input id="max" type="number" disabled={isLocked("maxWords")} value={isLocked("maxWords") ? (schoolReqs.maxWords ?? "") : (reqs.maxWords ?? "")} onChange={(e) => setReqs({ ...reqs, maxWords: e.target.value ? Number(e.target.value) : null })} />
-          </div>
-          <div>
-            <Label htmlFor="chars">Max chars</Label>
-            <Input id="chars" type="number" disabled={isLocked("maxChars")} value={isLocked("maxChars") ? (schoolReqs.maxChars ?? "") : (reqs.maxChars ?? "")} onChange={(e) => setReqs({ ...reqs, maxChars: e.target.value ? Number(e.target.value) : null })} />
-          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Length is set in characters. The minimum is a target, never a quota — a comment is
+            never padded with invented detail to reach it.
+          </p>
         </div>
         <div>
           <Label htmlFor="pronoun">Pronoun usage</Label>
