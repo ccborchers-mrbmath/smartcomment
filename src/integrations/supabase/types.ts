@@ -528,6 +528,7 @@ export type Database = {
           class_id: string
           created_at: string
           days_absent: number | null
+          term_averages: Json
           extracurricular: string | null
           first_name: string | null
           id: string
@@ -543,6 +544,7 @@ export type Database = {
           class_id: string
           created_at?: string
           days_absent?: number | null
+          term_averages?: Json
           extracurricular?: string | null
           first_name?: string | null
           id?: string
@@ -558,6 +560,7 @@ export type Database = {
           class_id?: string
           created_at?: string
           days_absent?: number | null
+          term_averages?: Json
           extracurricular?: string | null
           first_name?: string | null
           id?: string

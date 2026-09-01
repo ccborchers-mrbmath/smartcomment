@@ -17,8 +17,10 @@ const TERMS = ["2026 Term 1", "2026 Term 2", "2026 Term 3", "2026 Term 4"];
 
 type ExtractedMark = { term: string; student_mark: string; form_average: string };
 type ExtractedSubject = { name: string; marks: ExtractedMark[] };
+type TermAverage = { term: string; average: string };
 type StudentReport = {
   name: string;
+  term_averages?: TermAverage[];
   days_absent?: string;
   promotion_result?: string;
   extracurricular?: string;
@@ -350,6 +352,13 @@ export default function NewClass() {
           overrides: genders[i] ? { gender: genders[i] } : {},
           days_absent: rep ? num(rep.days_absent) : null,
           extracurricular: rep?.extracurricular?.trim() || null,
+          // The school's own printed average per term, keyed by the app's term
+          // label. Deliberately not recomputed from the subject marks.
+          term_averages: (rep?.term_averages ?? []).reduce((acc, ta) => {
+            const v = num(ta.average);
+            if (v !== null) acc[normaliseTerm(ta.term, reportYear)] = v;
+            return acc;
+          }, {} as Record<string, number>),
         };
       });
       const { data: createdStudents, error: sErr } = await supabase

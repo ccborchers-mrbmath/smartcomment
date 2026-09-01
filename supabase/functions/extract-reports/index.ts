@@ -139,7 +139,9 @@ STRUCTURE OF THE DOCUMENT:
 
 WHERE THE SUBJECT ROWS START AND STOP — read this before deciding what is a subject:
 - Subject rows begin immediately BELOW the term header row and end immediately ABOVE the "Total" row.
-- "Total" and "Average %" are computed summary rows. They are NOT subjects. Never return them.
+- "Total" and "Average %" are computed summary rows. They must NEVER appear in the subjects list.
+- The "Average %" row IS wanted, separately: return one entry per term in term_averages, exactly as printed. Do not recalculate it from the subject marks and do not round or adjust it. The school may leave subjects out of its own average and prints it rounded, and that printed figure is the one we want.
+- The "Total" row is not needed at all.
 - EVERYTHING BELOW the "Total"/"Average %" rows is outside the marks table. Never treat any of it as a subject, even when it looks like one.
 - Lines following an "Extra-Curricular Activities:" heading are that student's extracurricular involvement (e.g. "Sport: Fast 5 Netball", a club, an ensemble). Return them joined together in the extracurricular field. They are NOT subjects and have no marks.
 - "Promotion Result:" and "Days Absent: N" are their own fields. Return the number alone for days_absent (e.g. "1", not "Days Absent: 1").
@@ -172,6 +174,17 @@ const RESPONSE_SCHEMA = {
           days_absent: { type: "string" },
           promotion_result: { type: "string" },
           extracurricular: { type: "string" },
+          term_averages: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                term: { type: "string" },
+                average: { type: "string" },
+              },
+              required: ["term", "average"],
+            },
+          },
           subjects: {
             type: "array",
             items: {
