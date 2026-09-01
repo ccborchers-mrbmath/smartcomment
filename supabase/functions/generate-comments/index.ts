@@ -34,7 +34,7 @@ serve(async (req) => {
     // Load students + verify ownership
     const { data: students } = await supabase
       .from("students")
-      .select("id, name, class_id, overrides, included_terms, days_absent, extracurricular")
+      .select("id, name, class_id, overrides, included_terms, days_absent, extracurricular, term_averages")
       .in("id", studentIds);
     if (!students || students.length === 0) {
       return new Response(JSON.stringify({ error: "No students found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -230,6 +230,36 @@ serve(async (req) => {
       return picks;
     };
 
+    // Whether the student's overall average moved with or against the subjects
+    // being named. Uses the school's PRINTED average, not one recomputed from
+    // the subject marks: the school may leave subjects out of its own total,
+    // and it prints the figure rounded, so a real 60.4 -> 64.7 appears on the
+    // page as 60 -> 65. The comment sits beside that page and has to agree with
+    // it rather than with the arithmetic behind it.
+    const divergenceDirective = (student: any, picks: Pick[]): string | null => {
+      const avgs = (student?.term_averages ?? {}) as Record<string, unknown>;
+      if (!currentTerm || !priorTerm) return null;
+      const cur = Number(avgs[currentTerm]);
+      const prior = Number(avgs[priorTerm]);
+      if (!Number.isFinite(cur) || !Number.isFinite(prior)) return null;
+      const delta = cur - prior;
+      if (delta === 0) return null;
+
+      const declined = picks.filter((p) => p.kind === "concern").map((p) => p.subject);
+      const improved = picks.filter((p) => p.kind === "commend").map((p) => p.subject);
+
+      if (delta > 0 && declined.length) {
+        return `OVERALL TREND: the student's overall average has RISEN even though ${declined.join(" and ")} fell back. Make that point once — acknowledge the subject that slipped, then note with pleasure that the overall picture has still improved. Never state the average or by how much it moved.`;
+      }
+      if (delta < 0 && declined.length) {
+        return `OVERALL TREND: the student's overall average has FALLEN, and ${declined.join(" and ")} contributed to that. Make that point once — note that the ground lost in those areas has pulled the overall picture down. Never state the average or by how much it moved.`;
+      }
+      if (delta > 0 && improved.length) {
+        return `OVERALL TREND: the student's overall average has RISEN, in line with the subjects noted. You may acknowledge the overall improvement once. Never state the average or by how much it moved.`;
+      }
+      return null;
+    };
+
     // Attendance is banded in code so the model never sees or reasons about the
     // raw figure — it receives a directive, or nothing at all.
     const attendanceDirective = (days: number | null | undefined): string | null => {
@@ -267,6 +297,7 @@ HOW TO USE THE SUBJECT LIST:
 - NEVER state, imply or hint at any mark, percentage, grade, position, ranking or "out of" figure for any subject. Never say how much something rose or fell by. Describe direction and significance in words only.
 - Never compare this student to other students, to the form, the class, or to any average.
 - If the list says none, say nothing about individual subjects at all.
+- An OVERALL TREND directive, when present, tells you how the student's overall average moved relative to the subjects you are naming. Work it in ONCE, as a single observation. Never state the average itself, never say by how much it moved, and never compare it to anyone else's.
 
 ATTENDANCE:
 - Mention attendance ONLY if the student block carries an ATTENDANCE directive, and then follow exactly what it says. Never state the number of days absent.
@@ -372,6 +403,10 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
       const extras: string[] = [];
       const attendance = isRegistration ? attendanceDirective(s.days_absent) : null;
       if (attendance) extras.push(attendance);
+      if (isRegistration && hasMarksData) {
+        const trend = divergenceDirective(s, selectSubjects(s.id));
+        if (trend) extras.push(trend);
+      }
       const extrasText = extras.length ? `\n${extras.join("\n")}` : "";
 
       return `STUDENT_ID: ${s.id}\nNAME: ${s.name}\nPRONOUNS: ${pronouns}${extrasText}\nNOTES:\n${notes || "(no notes)"}${marksBlock}\n${ovText}`;
