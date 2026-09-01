@@ -239,7 +239,7 @@ serve(async (req) => {
       if (n <= 4) {
         return "ATTENDANCE: some lessons were missed. Encourage them to make sure any work missed has been caught up. Do not state the number of days.";
       }
-      return "ATTENDANCE: a significant number of lessons were missed. Express measured concern, and strongly encourage attending help sessions to catch up so nothing missed is left unaddressed before examinations. Do not state the number of days.";
+      return "ATTENDANCE: a significant number of lessons were missed. Express measured concern, and strongly encourage attending Help Sessions (the school's formal after-hours support — use that exact capitalised term) to catch up so nothing missed is left unaddressed before examinations. Do not state the number of days.";
     };
 
     const registrationFraming = `
@@ -255,6 +255,9 @@ YOU ARE WRITING AS A REGISTRATION TEACHER (also called a form teacher or home gr
 HOW TO USE THE SUBJECT LIST:
 - Each student block carries a "SUBJECTS TO COMMENT ON" list. It has already been chosen for you against the school's rules. Name THOSE subjects and NO OTHERS. Do not survey the rest of the curriculum, and do not mention a subject merely because it appears in the teacher's notes as an aside.
 - "commend" means say something genuinely warm about that subject. "concern" means note it as an area needing attention and encourage the student to address it — measured and constructive, never harsh.
+- NEVER characterise the SIZE of a rise or fall. You are told only the direction, never the magnitude, so you cannot know whether a change was slight or severe. Do not write "slightly", "marginally", "significantly", "sharply", "dramatically" or any equivalent about a subject's movement. State that it has improved or fallen back, and leave it there.
+- Whenever you flag a subject as a concern, recommend that the student attends Help Sessions. Use that exact term, capitalised as "Help Sessions" — it is the school's formal name for its after-hours support, and no paraphrase is acceptable.
+- Recommend Help Sessions ONCE in the comment, even where several things point to them. Do not repeat the recommendation per subject.
 - A subject marked "reached an excellent standard" deserves clear congratulation. Say so plainly; the student should feel it.
 - NEVER state, imply or hint at any mark, percentage, grade, position, ranking or "out of" figure for any subject. Never say how much something rose or fell by. Describe direction and significance in words only.
 - Never compare this student to other students, to the form, the class, or to any average.
@@ -274,7 +277,7 @@ ${reqs.policy ? `SCHOOL POLICY (HIGHEST PRIORITY — these rules from the school
 - Structure: ${reqs.structure || "strengths, areas for growth, next steps"}
 - Length: ${reqs.minChars || 350}–${reqs.maxChars || 750} characters
 - The minimum length is a TARGET, NEVER A QUOTA. Write only what the teacher's notes and the marks actually support. If the evidence runs out at 300 characters, stop at 300 characters. NEVER pad, generalise, restate the same point in different words, or invent an observation in order to reach the minimum — a short comment grounded in real evidence is always better than a long one containing anything you made up.
-- The maximum is a hard ceiling. Do not exceed it.
+- The maximum is an ABSOLUTE HARD CEILING. The comment is pasted into a school reporting system with a fixed field size, and a single character over breaks it. Count as you write and finish comfortably inside the limit. Exceeding the maximum is a failure, however good the prose.
 ${reqs.pronoun ? `- Refer to student in ${reqs.pronoun}` : ""}
 ${reqs.bannedPhrases ? `- Avoid these phrases: ${reqs.bannedPhrases}` : ""}
 ${reqs.mustInclude ? `- Must include: ${reqs.mustInclude}` : ""}
@@ -369,6 +372,58 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
       return `STUDENT_ID: ${s.id}\nNAME: ${s.name}\nPRONOUNS: ${pronouns}${extrasText}\nNOTES:\n${notes || "(no notes)"}${marksBlock}\n${ovText}`;
     };
 
+    // The character ceiling cannot be left to the model. It overshot a stated
+    // "hard ceiling" by 31% in testing, and a comment one character over breaks
+    // the school's reporting system. So it is enforced here: ask for a shorter
+    // rewrite, and if that still misses, cut at a sentence boundary. Never
+    // mid-word or mid-sentence — a truncated comment goes to a parent.
+    const maxChars = Number(reqs.maxChars) || 750;
+
+    const trimToSentence = (text: string, limit: number): string => {
+      if (text.length <= limit) return text;
+      const clipped = text.slice(0, limit);
+      let cut = -1;
+      for (const mark of [". ", "! ", "? "]) cut = Math.max(cut, clipped.lastIndexOf(mark));
+      cut = Math.max(cut, /[.!?]$/.test(clipped) ? clipped.length - 1 : -1);
+      // Only accept a sentence break that keeps most of the comment; otherwise
+      // fall back to a word boundary rather than returning a stub.
+      if (cut > limit * 0.6) return clipped.slice(0, cut + 1).trim();
+      const space = clipped.lastIndexOf(" ");
+      return (space > 0 ? clipped.slice(0, space) : clipped).trim();
+    };
+
+    const shortenToFit = async (text: string, limit: number): Promise<string> => {
+      try {
+        const res = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent",
+          {
+            method: "POST",
+            headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              system_instruction: { parts: [{ text: `You shorten a school report comment so it fits a hard character limit. Preserve every substantive point, the teacher's voice and the warmth. Remove only redundancy and padding. NEVER introduce a new fact, observation, subject or claim. NEVER mention marks, percentages or comparisons. Return ONLY the shortened comment.` }] },
+              contents: [{ role: "user", parts: [{ text: `Shorten this to at most ${limit} characters (it is currently ${text.length}):\n\n${text}` }] }],
+            }),
+          },
+        );
+        if (!res.ok) return trimToSentence(text, limit);
+        const data = await res.json();
+        const out = (data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "").trim();
+        await logUsage({
+          userId: user.id,
+          functionName: "generate-comments",
+          model: "google/gemini-3-flash-preview",
+          units: 1,
+          usage: geminiUsage(data.usageMetadata),
+          metadata: { purpose: "shorten_to_fit", limit },
+        });
+        // Even the rewrite is not trusted to obey — verify, then cut.
+        return out && out.length <= limit ? out : trimToSentence(out || text, limit);
+      } catch (e) {
+        console.error("shortenToFit failed, trimming instead", e);
+        return trimToSentence(text, limit);
+      }
+    };
+
     const callBatch = async (batch: any[]): Promise<{ comments: { student_id: string; text: string }[]; error?: { status: number; message: string } }> => {
       const studentBlocks = batch.map(buildBlock).join("\n\n========\n\n");
       const doFetch = () => fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent", {
@@ -414,6 +469,14 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
       const data = await res.json();
       const raw = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
       const parsed = raw ? JSON.parse(raw) : { comments: [] };
+
+      for (const cm of parsed.comments ?? []) {
+        if (typeof cm.text === "string" && cm.text.length > maxChars) {
+          const before = cm.text.length;
+          cm.text = await shortenToFit(cm.text, maxChars);
+          console.log(`generate-comments: comment ${before} -> ${cm.text.length} chars (ceiling ${maxChars})`);
+        }
+      }
 
       await logUsage({
         userId: user.id,
