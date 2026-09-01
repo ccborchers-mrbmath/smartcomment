@@ -126,6 +126,113 @@ serve(async (req) => {
     const hasMarksData = wantMarks && assessmentsList.length > 0;
     const isRegistration = !!cls?.is_registration;
 
+    // ---- Registration classes: pick which subjects the comment may name ----
+    // Deterministic in code rather than left to the model, which is unreliable
+    // at ranking, tie-breaking and honouring a cap.
+    const MOVE_THRESHOLD = 5;   // percentage points, not relative change
+    const HIGH_MARK = 85;       // absolute commendation, ignores the form average
+    const MOVE_SLOTS = 3;
+
+    // Latest term on the sheet is the one being reported on; the one before it
+    // is what we measure movement against.
+    const termsOnSheet = Array.from(
+      new Set(assessmentsList.map((a: any) => a.term).filter(Boolean)),
+    ).sort() as string[];
+    const currentTerm = termsOnSheet[termsOnSheet.length - 1] ?? null;
+    const priorTerm = termsOnSheet[termsOnSheet.length - 2] ?? null;
+
+    type Pick = { subject: string; kind: "commend" | "concern"; why: string };
+
+    const pctOf = (a: any, m: any): number | null => {
+      if (!m || m.status !== "graded" || m.raw_mark === null || m.raw_mark === undefined) return null;
+      const max = Number(a.max_marks);
+      if (!max) return null;
+      return (Number(m.raw_mark) / max) * 100;
+    };
+
+    const selectSubjects = (studentId: string): Pick[] => {
+      const marks = marksByStudent[studentId] || {};
+      // subject -> { current, prior } as percentages
+      const bySubject = new Map<string, { cur: number | null; prior: number | null }>();
+      for (const a of assessmentsList) {
+        const name = (a.name || "").trim();
+        if (!name) continue;
+        const entry = bySubject.get(name) ?? { cur: null, prior: null };
+        const pct = pctOf(a, marks[a.id]);
+        if (a.term === currentTerm) entry.cur = pct;
+        else if (a.term === priorTerm) entry.prior = pct;
+        bySubject.set(name, entry);
+      }
+
+      // One 85%+ subject is reserved and taken out of the movement pool, so a
+      // subject that is excellent but static still gets named, and the
+      // improvement slot goes to a genuine mover.
+      let reserved: string | null = null;
+      let best = -Infinity;
+      for (const [name, v] of bySubject) {
+        if (v.cur !== null && v.cur >= HIGH_MARK && v.cur > best) { best = v.cur; reserved = name; }
+      }
+
+      const movement = new Map<string, number>();
+      for (const [name, v] of bySubject) {
+        if (name === reserved) continue;
+        if (v.cur === null || v.prior === null) continue;   // no prior term = no movement
+        movement.set(name, v.cur - v.prior);
+      }
+
+      const imp = Array.from(movement.entries()).filter(([, d]) => d >= MOVE_THRESHOLD)
+        .sort((a, b) => b[1] - a[1]).map(([n]) => n);
+      const dec = Array.from(movement.entries()).filter(([, d]) => d <= -MOVE_THRESHOLD)
+        .sort((a, b) => a[1] - b[1]).map(([n]) => n);
+
+      let chosen: string[];
+      if (!dec.length) chosen = imp.slice(0, MOVE_SLOTS);
+      else if (!imp.length) chosen = dec.slice(0, MOVE_SLOTS);
+      else if (imp.length > dec.length) chosen = [...imp.slice(0, 2), ...dec.slice(0, 1)];
+      else if (dec.length > imp.length) chosen = [...dec.slice(0, 2), ...imp.slice(0, 1)];
+      else {
+        // Equal counts: rank by magnitude, take the top two, then balance the
+        // third against whichever direction those two shared.
+        const ranked = Array.from(movement.entries())
+          .filter(([, d]) => Math.abs(d) >= MOVE_THRESHOLD)
+          .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).map(([n]) => n);
+        const top2 = ranked.slice(0, 2);
+        let third: string | undefined;
+        if (top2.length === 2 && top2.every((n) => (movement.get(n) ?? 0) > 0)) {
+          third = dec.find((n) => !top2.includes(n));
+        } else if (top2.length === 2 && top2.every((n) => (movement.get(n) ?? 0) < 0)) {
+          third = imp.find((n) => !top2.includes(n));
+        } else {
+          third = ranked.find((n) => !top2.includes(n));
+        }
+        chosen = third ? [...top2, third] : top2;
+      }
+
+      const picks: Pick[] = [];
+      if (reserved) {
+        picks.push({ subject: reserved, kind: "commend", why: "reached an excellent standard this term" });
+      }
+      for (const name of chosen) {
+        const d = movement.get(name) ?? 0;
+        picks.push(d > 0
+          ? { subject: name, kind: "commend", why: "has improved markedly since last term" }
+          : { subject: name, kind: "concern", why: "has fallen back since last term" });
+      }
+      return picks;
+    };
+
+    // Attendance is banded in code so the model never sees or reasons about the
+    // raw figure — it receives a directive, or nothing at all.
+    const attendanceDirective = (days: number | null | undefined): string | null => {
+      if (days === null || days === undefined) return null;
+      const n = Number(days);
+      if (!Number.isFinite(n) || n <= 2) return null;
+      if (n <= 4) {
+        return "ATTENDANCE: some lessons were missed. Encourage them to make sure any work missed has been caught up. Do not state the number of days.";
+      }
+      return "ATTENDANCE: a significant number of lessons were missed. Express measured concern, and strongly encourage attending help sessions to catch up so nothing missed is left unaddressed before examinations. Do not state the number of days.";
+    };
+
     const registrationFraming = `
 
 YOU ARE WRITING AS A REGISTRATION TEACHER (also called a form teacher or home group teacher).
@@ -133,7 +240,20 @@ YOU ARE WRITING AS A REGISTRATION TEACHER (also called a form teacher or home gr
 - Draw the picture across ALL of the student's subjects together, plus their character, conduct, attitude, effort and involvement in school life.
 - Do not write as though you taught them one subject. You are the teacher who oversees them across the whole curriculum.
 - Where the evidence supports it, comment on the overall shape of their academic profile (which areas they are flourishing in, which are proving harder) rather than narrating every subject one by one.
-- The teacher's own notes about this student carry equal weight to the marks — they capture conduct, character and pastoral observations the marks cannot show.`;
+- The teacher's own notes about this student carry equal weight to the marks — they capture conduct, character and pastoral observations the marks cannot show.
+- A comment is NOT complete on marks alone. The teacher's own observations about character, conduct, attitude and presentation must carry the comment; the subjects below support it. If the teacher has written little or nothing, write a correspondingly short comment rather than filling the space from the marks.
+
+HOW TO USE THE SUBJECT LIST:
+- Each student block carries a "SUBJECTS TO COMMENT ON" list. It has already been chosen for you against the school's rules. Name THOSE subjects and NO OTHERS. Do not survey the rest of the curriculum, and do not mention a subject merely because it appears in the teacher's notes as an aside.
+- "commend" means say something genuinely warm about that subject. "concern" means note it as an area needing attention and encourage the student to address it — measured and constructive, never harsh.
+- A subject marked "reached an excellent standard" deserves clear congratulation. Say so plainly; the student should feel it.
+- NEVER state, imply or hint at any mark, percentage, grade, position, ranking or "out of" figure for any subject. Never say how much something rose or fell by. Describe direction and significance in words only.
+- Never compare this student to other students, to the form, the class, or to any average.
+- If the list says none, say nothing about individual subjects at all.
+
+ATTENDANCE:
+- Mention attendance ONLY if the student block carries an ATTENDANCE directive, and then follow exactly what it says. Never state the number of days absent.
+- If there is no ATTENDANCE line, say nothing whatsoever about attendance — do not praise it, and do not remark on it being good.`;
 
     const systemPrompt = `You write end-of-term school report comments for a teacher.
 ${isRegistration ? registrationFraming : ""}
@@ -162,7 +282,7 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
 - Typed notes, voice transcripts, OCR text, and any other source MAY contain DIFFERENT spellings of the same name (e.g. roster says "Aleisha" but a voice transcript says "Alicia", or roster says "Siôn" but notes say "Shawn"). These differences are ERRORS in the source — they are NOT alternative valid spellings.
 - You MUST use ONLY the exact spelling from the NAME field every single time you refer to the student. Do not change, shorten, lengthen, anglicise, phoneticise, or "correct" it. Do not mix spellings within a comment.
 - If the notes contain a name spelled differently, treat that as referring to THIS student and silently use the roster spelling instead.
-- Use ONLY the student's first name (the first whitespace-separated word of the NAME field) every time you refer to them. NEVER use the surname, last name, family name, or full name. Do not use initials. Do not use "Mr/Mrs/Ms [Surname]". If the NAME field is "Aleisha Thompson", refer to the student only as "Aleisha" — never "Aleisha Thompson", never "Thompson", never "Miss Thompson".${hasMarksData ? `\n\nASSESSMENT DATA RULES (HIGHEST PRIORITY when an ASSESSMENT SUMMARY block is present):\n- NEVER state, imply, or hint at a raw mark, percentage, fraction, ranking, position, or "out of" number. Do NOT say "scored", "achieved X%", "got X out of Y", "top of the class", "above average", "below average", "highest mark", "lowest mark", or similar.\n- NEVER compare the student to other students or to a class average IN THE TEXT YOU WRITE. Any comparison you express must be between this student's own assessments.\n- A "form average" may be given for an assessment. It exists ONLY to tell you how demanding that assessment was for everyone, so you can judge which results are genuinely strong for this student. A mark below the student's own average can still be a real strength if the form average for it is low, and a high mark can be unremarkable if the form found it easy. Weigh results this way BEFORE deciding what to praise or flag.\n- The form average is reasoning material for you alone. NEVER state it, allude to it, or describe the student as above/below/in line with their peers, the form, the class, or "the average". The reader must not be able to tell a form average was available to you.\n- Use the per-assessment deltas and descriptions to identify relative strengths and growth areas WITHIN the student's own record.\n- Use comparative language only, e.g. "has shown a stronger performance in {topic from description A} than in {topic from description B}", "is finding {topic} more challenging than {other topic}", "progress in {topic} has lifted noticeably since {earlier assessment topic}".\n- NEVER use "done well in…", "done poorly in…", "did badly", "failed", "excelled", or any qualitative judgement word without a comparative anchor inside the student's own record.\n- Refer to assessment content by its DESCRIPTION (the topic/skill assessed), NOT by the assessment NAME (not "Quiz 1", not "Mid-term test").\n- Assessments marked Absent or Exempt must not be commented on.` : ""}${instruction ? `\n\nADDITIONAL INSTRUCTION: ${instruction}` : ""}`;
+- Use ONLY the student's first name (the first whitespace-separated word of the NAME field) every time you refer to them. NEVER use the surname, last name, family name, or full name. Do not use initials. Do not use "Mr/Mrs/Ms [Surname]". If the NAME field is "Aleisha Thompson", refer to the student only as "Aleisha" — never "Aleisha Thompson", never "Thompson", never "Miss Thompson".${hasMarksData ? `\n\nASSESSMENT DATA RULES (HIGHEST PRIORITY when an ASSESSMENT SUMMARY block is present):\n- NEVER state, imply, or hint at a raw mark, percentage, fraction, ranking, position, or "out of" number. Do NOT say "scored", "achieved X%", "got X out of Y", "top of the class", "above average", "below average", "highest mark", "lowest mark", or similar.\n- NEVER compare the student to other students, to the form, or to a class average. Any comparison you express must be between this student's own assessments.\n- Use the per-assessment deltas and descriptions to identify relative strengths and growth areas WITHIN the student's own record.\n- Use comparative language only, e.g. "has shown a stronger performance in {topic from description A} than in {topic from description B}", "is finding {topic} more challenging than {other topic}", "progress in {topic} has lifted noticeably since {earlier assessment topic}".\n- NEVER use "done well in…", "done poorly in…", "did badly", "failed", "excelled", or any qualitative judgement word without a comparative anchor inside the student's own record.\n- Refer to assessment content by its DESCRIPTION (the topic/skill assessed), NOT by the assessment NAME (not "Quiz 1", not "Mid-term test").\n- Assessments marked Absent or Exempt must not be commented on.` : ""}${instruction ? `\n\nADDITIONAL INSTRUCTION: ${instruction}` : ""}`;
 
     const buildBlock = (s: any) => {
       const allowedTerms: string[] = (s as any).included_terms ?? ["2026 Term 1","2026 Term 2","2026 Term 3","2026 Term 4"];
@@ -184,10 +304,19 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
       const ovText = Object.keys(otherOv).length ? `Per-student override: ${JSON.stringify(otherOv)}` : "";
 
       let marksBlock = "";
-      if (hasMarksData) {
+      if (hasMarksData && isRegistration) {
+        // Curated list only. Handing over the full sheet invites the model to
+        // range across every subject and quote figures.
+        const picks = selectSubjects(s.id);
+        marksBlock = picks.length
+          ? `\nSUBJECTS TO COMMENT ON (exactly these, no others):\n${picks
+              .map((p) => `- ${p.subject} — ${p.kind}: ${p.why}`)
+              .join("\n")}`
+          : "\nSUBJECTS TO COMMENT ON: none — no subject moved enough to be worth noting. Base the comment on the teacher's notes alone.";
+      } else if (hasMarksData) {
         const studentMarks = marksByStudent[s.id] || {};
         const rows: string[] = [];
-        const pcts: { aid: string; name: string; desc: string; pct: number; avgPct: number | null }[] = [];
+        const pcts: { aid: string; name: string; desc: string; pct: number }[] = [];
         for (const a of assessmentsList) {
           const m = studentMarks[a.id];
           const desc = (a.description || "").trim() || "(no description)";
@@ -205,10 +334,8 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
             continue;
           }
           const pct = (Number(m.raw_mark) / Number(a.max_marks)) * 100;
-          const avgRaw = a.class_average === null || a.class_average === undefined ? null : Number(a.class_average);
-          const avgPct = avgRaw === null || !Number.isFinite(avgRaw) ? null : (avgRaw / Number(a.max_marks)) * 100;
-          rows.push(`- "${a.name}" (${termLabel}, ${desc}): ${m.raw_mark}/${a.max_marks}${avgPct === null ? "" : ` [form average ${Math.round(avgPct)}% — internal difficulty signal only, never mention]`}`);
-          pcts.push({ aid: a.id, name: a.name, desc, pct, avgPct });
+          rows.push(`- "${a.name}" (${termLabel}, ${desc}): ${m.raw_mark}/${a.max_marks}`);
+          pcts.push({ aid: a.id, name: a.name, desc, pct });
         }
         if (pcts.length > 0) {
           const avg = pcts.reduce((s, x) => s + x.pct, 0) / pcts.length;
@@ -219,14 +346,6 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
           }).join(", ");
           rows.push(`Student's own average across graded assessments: ${Math.round(avg)}%`);
           rows.push(`Per-assessment delta vs own average (positive = relatively stronger, negative = relatively weaker): ${deltas}`);
-          const withAvg = pcts.filter((p) => p.avgPct !== null);
-          if (withAvg.length > 0) {
-            const adjusted = withAvg.map((p) => {
-              const d = Math.round(p.pct - (p.avgPct as number));
-              return `${p.name} ${d > 0 ? `+${d}` : `${d}`}`;
-            }).join(", ");
-            rows.push(`INTERNAL ONLY — difficulty-adjusted standing (student % minus form average %; positive = performed well on an assessment the form found harder, negative = underperformed relative to how the form found it). Use this to decide what is genuinely a strength or a concern. NEVER mention these figures or any peer comparison: ${adjusted}`);
-          }
         } else {
           rows.push("(no graded assessments for this student in the selected terms)");
         }
@@ -234,8 +353,8 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
       }
 
       const extras: string[] = [];
-      if (s.days_absent !== null && s.days_absent !== undefined) extras.push(`DAYS ABSENT: ${s.days_absent}`);
-      if ((s.extracurricular ?? "").trim()) extras.push(`EXTRA-CURRICULAR: ${String(s.extracurricular).trim()}`);
+      const attendance = isRegistration ? attendanceDirective(s.days_absent) : null;
+      if (attendance) extras.push(attendance);
       const extrasText = extras.length ? `\n${extras.join("\n")}` : "";
 
       return `STUDENT_ID: ${s.id}\nNAME: ${s.name}\nPRONOUNS: ${pronouns}${extrasText}\nNOTES:\n${notes || "(no notes)"}${marksBlock}\n${ovText}`;
