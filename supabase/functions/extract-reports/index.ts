@@ -251,6 +251,9 @@ async function callGemini(userParts: any[], label: string): Promise<Extraction> 
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  // Reported back on failure so a browser-side error says how far it got.
+  let stage = "start";
+  let pageCount = 0;
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -272,11 +275,14 @@ serve(async (req) => {
     }
 
     const t0 = Date.now();
+    stage = "decode_base64";
     const pdfBytes = Uint8Array.from(atob(fileBase64), (c) => c.charCodeAt(0));
     let pages: string[] = [];
     let layerError: string | null = null;
+    stage = "parse_text_layer";
     try {
       pages = await positionalPages(pdfBytes);
+      pageCount = pages.length;
     } catch (e) {
       // Do NOT quietly drop to the vision path here. That path sends the whole
       // PDF in one call, which is the slow shape this function was rewritten to
@@ -286,9 +292,24 @@ serve(async (req) => {
     }
     console.log(`extract-reports: ${pages.length} text-layer pages in ${Date.now() - t0}ms${layerError ? ` (layer error: ${layerError})` : ""}`);
 
-    // A big PDF with no usable text layer would need the whole file in one
-    // vision call. Refuse with something actionable rather than stalling until
-    // the platform kills us — a killed function surfaces in the browser as an
+    // A thrown parse error is a bug, not a scanned PDF. Falling through to the
+    // vision path would hide it behind the same slow single call this function
+    // was rewritten to avoid, so report it instead — including in the response,
+    // because the edge logs are not always reachable.
+    if (layerError) {
+      return new Response(
+        JSON.stringify({
+          error: `Could not read the PDF's text layer: ${layerError}`,
+          stage: "positional_text_layer",
+          pdf_bytes: pdfBytes.length,
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // A genuinely scanned PDF (no text layer, no error) still needs the whole
+    // file in one vision call. Refuse a big one rather than stalling until the
+    // platform kills us — a killed function surfaces in the browser as an
     // opaque CORS error, which is close to undebuggable for the teacher.
     const MAX_VISION_BYTES = 1_500_000;
     if (pages.length === 0 && pdfBytes.length > MAX_VISION_BYTES) {
@@ -303,6 +324,7 @@ serve(async (req) => {
     let year = "", form = "", terms: string[] = [], students: any[] = [];
     const usages: any[] = [];
 
+    stage = pages.length > 0 ? "gemini_batched" : "gemini_vision";
     if (pages.length > 0) {
       // Text-layer path: batch the pages into small calls and run a few at a
       // time. The PDF bytes are not sent — the coordinates carry everything
@@ -375,7 +397,11 @@ serve(async (req) => {
     const msg = e instanceof Error ? e.message : "unknown";
     const status = msg === "rate_limited" ? 429 : 500;
     return new Response(
-      JSON.stringify({ error: msg === "rate_limited" ? "Rate limit reached. Try again shortly." : msg }),
+      JSON.stringify({
+        error: msg === "rate_limited" ? "Rate limit reached. Try again shortly." : msg,
+        stage: stage,
+        pages: pageCount,
+      }),
       { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
