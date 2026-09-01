@@ -295,9 +295,10 @@ export default function ReviewExport() {
             const text = edits[r.student_id] ?? "";
             const wc = wordCount(text);
             const cc = text.length;
-            const overWord = reqs.maxWords && wc > reqs.maxWords;
-            const underWord = reqs.minWords && wc < reqs.minWords;
+            // Limits are set in characters; the word count stays on screen as a
+            // readability hint but no longer drives the warning.
             const overChar = reqs.maxChars && cc > reqs.maxChars;
+            const underChar = reqs.minChars && cc < reqs.minChars;
             return (
               <Card key={r.student_id} className="p-5">
                 <div className="flex items-start justify-between mb-3 gap-4 flex-wrap">
@@ -380,11 +381,13 @@ export default function ReviewExport() {
                       }}
                     />
                     <div className="flex items-center justify-between mt-2 text-xs">
-                      <span className={overWord || underWord ? "text-destructive" : "text-muted-foreground"}>
-                        {wc} words {reqs.minWords || reqs.maxWords ? `(${reqs.minWords || 0}–${reqs.maxWords || "∞"})` : ""}
-                      </span>
-                      <span className={overChar ? "text-destructive" : "text-muted-foreground"}>
-                        {cc} chars {reqs.maxChars ? `(max ${reqs.maxChars})` : ""}
+                      <span className="text-muted-foreground">{wc} words</span>
+                      <span
+                        className={overChar || underChar ? "text-destructive" : "text-muted-foreground"}
+                        title={underChar ? "Shorter than the target — usually means there wasn't enough evidence to say more." : undefined}
+                      >
+                        {cc} chars {reqs.minChars || reqs.maxChars ? `(${reqs.minChars || 0}–${reqs.maxChars || "∞"})` : ""}
+                        {underChar ? " · under target" : ""}
                       </span>
                     </div>
                   </>

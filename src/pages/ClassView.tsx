@@ -15,6 +15,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useBuyCredits, handleInsufficientCredits } from "@/components/BuyCreditsDialog";
 
+const CHARS_PER_WORD = 6;
+
+// Readability hint beside the character inputs; never constrains generation.
+function approxWords(chars: unknown): string {
+  const n = Number(chars);
+  if (!Number.isFinite(n) || n <= 0) return "—";
+  return `about ${Math.round(n / CHARS_PER_WORD)} words`;
+}
+
 const TERMS = ["2026 Term 1", "2026 Term 2", "2026 Term 3", "2026 Term 4"] as const;
 
 type Klass = { id: string; name: string; year_grade: string | null; subject: string | null; term: string | null; active_term: string | null; requirements: any; is_registration: boolean };
@@ -142,7 +151,8 @@ export default function ClassView() {
   const saveReqs = async () => {
     if (!klass) return;
     setSavingReqs(true);
-    const { error } = await supabase.from("classes").update({ requirements: reqs }).eq("id", klass.id);
+    const { minWords: _mw, maxWords: _xw, ...toSave } = reqs as Record<string, unknown>;
+    const { error } = await supabase.from("classes").update({ requirements: toSave }).eq("id", klass.id);
     setSavingReqs(false);
     if (error) toast.error(error.message);
     else toast.success("Requirements saved");
@@ -440,18 +450,16 @@ export default function ClassView() {
               <Label htmlFor="structure">Required structure</Label>
               <Input id="structure" placeholder="strengths → growth areas → next steps" value={reqs.structure || ""} onChange={(e) => setReqs({ ...reqs, structure: e.target.value })} />
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="min">Min words</Label>
-                <Input id="min" type="number" value={reqs.minWords ?? ""} onChange={(e) => setReqs({ ...reqs, minWords: e.target.value ? Number(e.target.value) : null })} />
+                <Label htmlFor="minchars">Min characters</Label>
+                <Input id="minchars" type="number" value={reqs.minChars ?? ""} onChange={(e) => setReqs({ ...reqs, minChars: e.target.value ? Number(e.target.value) : null })} />
+                <p className="text-xs text-muted-foreground mt-1">{approxWords(reqs.minChars)}</p>
               </div>
               <div>
-                <Label htmlFor="max">Max words</Label>
-                <Input id="max" type="number" value={reqs.maxWords ?? ""} onChange={(e) => setReqs({ ...reqs, maxWords: e.target.value ? Number(e.target.value) : null })} />
-              </div>
-              <div>
-                <Label htmlFor="chars">Max chars</Label>
-                <Input id="chars" type="number" value={reqs.maxChars ?? ""} onChange={(e) => setReqs({ ...reqs, maxChars: e.target.value ? Number(e.target.value) : null })} />
+                <Label htmlFor="maxchars">Max characters</Label>
+                <Input id="maxchars" type="number" value={reqs.maxChars ?? ""} onChange={(e) => setReqs({ ...reqs, maxChars: e.target.value ? Number(e.target.value) : null })} />
+                <p className="text-xs text-muted-foreground mt-1">{approxWords(reqs.maxChars)}</p>
               </div>
             </div>
             <div>
