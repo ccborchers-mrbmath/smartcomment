@@ -76,11 +76,27 @@ serve(async (req) => {
       : "(gender unspecified — refer to the student by name only; NEVER use they/them/their)";
     const firstName = (student.name || "").trim().split(/\s+/)[0] || student.name;
 
+    // The rewrite has to respect the same ceiling the comment was generated
+    // under, or a rewrite quietly pushes a near-limit comment past it and
+    // breaks the school's reporting system. Budget = ceiling minus the text
+    // that is staying put.
+    const maxChars = Number(reqs.maxChars) || 750;
+    const selectionBudget = Math.max(40, maxChars - (fullComment.length - selection.length));
+
     const systemPrompt = `You rewrite a SPECIFIC SELECTION inside an end-of-term school report comment.
 
 ${reqs.policy ? `SCHOOL POLICY (must follow exactly):\n${String(reqs.policy).slice(0, 6000)}\n\n` : ""}${styleText ? `TEACHER STYLE REFERENCE:\n${styleText.slice(0, 4000)}\n\n` : ""}REQUIREMENTS:
 - Tone: ${reqs.tone || "warm and professional"}
 ${reqs.bannedPhrases ? `- Avoid these phrases: ${reqs.bannedPhrases}` : ""}
+
+REPORT INTEGRITY RULES (these bind the rewrite exactly as they bound the original comment):
+- NEVER state, imply or hint at any mark, percentage, grade, position, ranking or "out of" figure — for a subject or for the overall average. Never say how much anything rose or fell by.
+- NEVER characterise the SIZE of a rise or fall. You do not know the magnitude, so you cannot know whether a change was slight or severe. Do not write "slightly", "slight", "marginally", "a little", "somewhat", "significantly", "sharply", "dramatically" or any equivalent. Direction only: it improved, or it fell back.
+- Never compare this student to other students, to the form, the class, or to any average.
+- Do not introduce a claim the selection did not already make. You are changing how something is said, not what is being asserted. If the selection says a subject fell back, the replacement says that too — no softening it into something milder, no hardening it into something worse.
+- Do not state the number of days a student was absent.
+- If the comment recommends Help Sessions, keep that exact term, capitalised — it is the school's formal name for its after-hours support and no paraphrase is acceptable.
+- The replacement must be at most ${selectionBudget} characters, so that the whole comment stays within its ${maxChars}-character limit.
 
 STUDENT: ${student.name}
 PRONOUNS: ${pronouns}
@@ -106,33 +122,50 @@ ${selection}
 
 Return only the replacement for the selected text.`;
 
-    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent", {
-      method: "POST",
-      headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "object",
-            properties: { text: { type: "string" } },
-            required: ["text"],
+    const ask = async (extra: string) => {
+      const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent", {
+        method: "POST",
+        headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: "user", parts: [{ text: userPrompt + extra }] }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "object",
+              properties: { text: { type: "string" } },
+              required: ["text"],
+            },
           },
-        },
-      }),
-    });
+        }),
+      });
+      if (res.status === 429) return { rateLimited: true as const };
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`Gemini API: ${res.status} ${t}`);
+      }
+      const data = await res.json();
+      const raw = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
+      const parsed = raw ? JSON.parse(raw) : { text: "" };
+      await logUsage({ userId: user.id, functionName: "rewrite-selection", model: "google/gemini-3.1-pro-preview", units: 1, usage: geminiUsage(data.usageMetadata) });
+      return { text: String(parsed.text ?? "") };
+    };
 
-    if (res.status === 429) return new Response(JSON.stringify({ error: "Rate limit reached. Try again shortly." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    if (!res.ok) {
-      const t = await res.text();
-      throw new Error(`Gemini API: ${res.status} ${t}`);
+    const first = await ask("");
+    if ("rateLimited" in first) return new Response(JSON.stringify({ error: "Rate limit reached. Try again shortly." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    // A prompt instruction alone does not reliably hold a length. Ask once
+    // more with the actual overshoot quoted back, then keep whichever attempt
+    // fits — trimming the text here would leave a broken sentence in the
+    // middle of the comment.
+    let text = first.text;
+    if (text.length > selectionBudget) {
+      const second = await ask(`\n\nYour previous replacement was ${text.length} characters, which is too long. It must be ${selectionBudget} characters or fewer. Say the same thing more concisely.`);
+      if (!("rateLimited" in second) && second.text.length < text.length) text = second.text;
+      console.log(`rewrite-selection: ${first.text.length} -> ${text.length} chars (budget ${selectionBudget})`);
     }
-    const data = await res.json();
-    const raw = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
-    const parsed = raw ? JSON.parse(raw) : { text: "" };
-    await logUsage({ userId: user.id, functionName: "rewrite-selection", model: "google/gemini-3.1-pro-preview", units: 1, usage: geminiUsage(data.usageMetadata) });
-    return new Response(JSON.stringify({ text: parsed.text ?? "" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    return new Response(JSON.stringify({ text }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error(e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "unknown" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
