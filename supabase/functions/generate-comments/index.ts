@@ -32,10 +32,17 @@ serve(async (req) => {
     const allowedMarkTerms: string[] = Array.isArray(markTerms) ? markTerms : [];
 
     // Load students + verify ownership
-    const { data: students } = await supabase
+    const { data: students, error: studentsError } = await supabase
       .from("students")
       .select("id, name, class_id, overrides, included_terms, days_absent, extracurricular, term_averages")
       .in("id", studentIds);
+    // Surface the real reason. A column this function selects but the database
+    // does not yet have (a migration deployed after the function) makes
+    // PostgREST reject the whole query, which is indistinguishable from an
+    // empty result unless the error is reported.
+    if (studentsError) {
+      return new Response(JSON.stringify({ error: `Could not load students: ${studentsError.message}` }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     if (!students || students.length === 0) {
       return new Response(JSON.stringify({ error: "No students found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -248,14 +255,18 @@ serve(async (req) => {
       const declined = picks.filter((p) => p.kind === "concern").map((p) => p.subject);
       const improved = picks.filter((p) => p.kind === "commend").map((p) => p.subject);
 
+      // Bare facts only. Any prose written here gets copied into the comment
+      // verbatim — that is how "pulled the overall picture down" ended up in a
+      // real report, and how every directive ending in "term" produced three
+      // sentences saying "this Term".
       if (delta > 0 && declined.length) {
-        return `OVERALL TREND: the student's overall average has RISEN even though ${declined.join(" and ")} fell back. Make that point once — acknowledge the subject that slipped, then note with pleasure that the overall picture has still improved. Never state the average or by how much it moved.`;
+        return `OVERALL TREND: overall average UP, while ${declined.join(" and ")} went DOWN. A contrast worth drawing once.`;
       }
       if (delta < 0 && declined.length) {
-        return `OVERALL TREND: the student's overall average has FALLEN, and ${declined.join(" and ")} contributed to that. Make that point once — note that the ground lost in those areas has pulled the overall picture down. Never state the average or by how much it moved.`;
+        return `OVERALL TREND: overall average DOWN, with ${declined.join(" and ")} among the contributors. Worth linking once.`;
       }
       if (delta > 0 && improved.length) {
-        return `OVERALL TREND: the student's overall average has RISEN, in line with the subjects noted. You may acknowledge the overall improvement once. Never state the average or by how much it moved.`;
+        return `OVERALL TREND: overall average UP, consistent with the subjects named. May be acknowledged once.`;
       }
       return null;
     };
@@ -297,7 +308,7 @@ HOW TO USE THE SUBJECT LIST:
 - NEVER state, imply or hint at any mark, percentage, grade, position, ranking or "out of" figure for any subject. Never say how much something rose or fell by. Describe direction and significance in words only.
 - Never compare this student to other students, to the form, the class, or to any average.
 - If the list says none, say nothing about individual subjects at all.
-- An OVERALL TREND directive, when present, tells you how the student's overall average moved relative to the subjects you are naming. Work it in ONCE, as a single observation. Never state the average itself, never say by how much it moved, and never compare it to anyone else's.
+- An OVERALL TREND directive, when present, tells you how the student's overall average moved relative to the subjects you are naming. Like the subject list, it is a FACT and not wording — it is written in clipped note form deliberately, and copying its phrasing into a report would read badly. Express it in full, natural prose of your own. Work it in ONCE. Never state the average itself, never say by how much it moved, and never compare it to anyone else's.
 
 ATTENDANCE:
 - Mention attendance ONLY if the student block carries an ATTENDANCE directive, and then follow exactly what it says. Never state the number of days absent.
@@ -307,6 +318,8 @@ ATTENDANCE:
 ${isRegistration ? registrationFraming : ""}
 
 Voice & style — match the teacher's previous comments below. Be specific, warm, and professional.
+
+Where previous comments are supplied, they are the authority on HOW you write: register, vocabulary, sentence rhythm and formality. That applies to everything, including how you express a subject's movement or an overall trend. The directives you are given elsewhere in this prompt say WHAT is true; the teacher's own comments say how a teacher at this school would phrase it. Never let a directive's clipped wording leak into the report — write as this teacher writes.
 
 ${reqs.policy ? `SCHOOL POLICY (HIGHEST PRIORITY — these rules from the school's official policy document MUST be followed exactly, and override any conflicting guidance below):\n${String(reqs.policy).slice(0, 8000)}\n\n` : ""}${styleText ? `TEACHER'S PREVIOUS COMMENTS (style reference):\n${styleText.slice(0, 6000)}\n\n` : ""}SCHOOL REQUIREMENTS:
 - Tone: ${reqs.tone || "warm and professional"}
