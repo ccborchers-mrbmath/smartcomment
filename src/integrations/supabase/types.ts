@@ -64,6 +64,7 @@ export type Database = {
       }
       assessments: {
         Row: {
+          class_average: number | null
           class_id: string
           created_at: string
           description: string
@@ -77,6 +78,7 @@ export type Database = {
           weight: number
         }
         Insert: {
+          class_average?: number | null
           class_id: string
           created_at?: string
           description?: string
@@ -90,6 +92,7 @@ export type Database = {
           weight?: number
         }
         Update: {
+          class_average?: number | null
           class_id?: string
           created_at?: string
           description?: string
@@ -109,6 +112,7 @@ export type Database = {
           active_term: string | null
           created_at: string
           id: string
+          is_registration: boolean
           name: string
           requirements: Json
           subject: string | null
@@ -121,6 +125,7 @@ export type Database = {
           active_term?: string | null
           created_at?: string
           id?: string
+          is_registration?: boolean
           name: string
           requirements?: Json
           subject?: string | null
@@ -133,6 +138,7 @@ export type Database = {
           active_term?: string | null
           created_at?: string
           id?: string
+          is_registration?: boolean
           name?: string
           requirements?: Json
           subject?: string | null
@@ -290,6 +296,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          billing_override: string | null
           created_at: string
           credits_balance: number
           email: string | null
@@ -309,6 +316,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          billing_override?: string | null
           created_at?: string
           credits_balance?: number
           email?: string | null
@@ -328,6 +336,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          billing_override?: string | null
           created_at?: string
           credits_balance?: number
           email?: string | null
@@ -518,6 +527,8 @@ export type Database = {
         Row: {
           class_id: string
           created_at: string
+          days_absent: number | null
+          extracurricular: string | null
           first_name: string | null
           id: string
           included_terms: string[]
@@ -526,11 +537,14 @@ export type Database = {
           overrides: Json
           position: number
           teacher_id: string
+          term_averages: Json
           updated_at: string
         }
         Insert: {
           class_id: string
           created_at?: string
+          days_absent?: number | null
+          extracurricular?: string | null
           first_name?: string | null
           id?: string
           included_terms?: string[]
@@ -539,11 +553,14 @@ export type Database = {
           overrides?: Json
           position?: number
           teacher_id: string
+          term_averages?: Json
           updated_at?: string
         }
         Update: {
           class_id?: string
           created_at?: string
+          days_absent?: number | null
+          extracurricular?: string | null
           first_name?: string | null
           id?: string
           included_terms?: string[]
@@ -552,6 +569,7 @@ export type Database = {
           overrides?: Json
           position?: number
           teacher_id?: string
+          term_averages?: Json
           updated_at?: string
         }
         Relationships: [
