@@ -1,6 +1,7 @@
 import React from "react";
 import {
   AbsoluteFill,
+  Audio,
   Img,
   Sequence,
   interpolate,
@@ -16,107 +17,134 @@ import { colors } from "./theme";
 loadFraunces("normal", { weights: ["400", "600", "700"], subsets: ["latin"] });
 loadInter("normal", { weights: ["400", "500", "600"], subsets: ["latin"] });
 
+type Highlight = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  label?: string;
+  labelBelow?: boolean;
+  delay: number;
+};
+
 type Step = {
   chapter: string;
   title: string;
   lines: string[];
   image: string;
   seconds?: number;
+  vo?: string;
+  highlights?: Highlight[];
 };
 
 const STEPS: Step[] = [
-  // Chapter 1 — getting in
   {
     chapter: "Getting started",
     title: "Create your account",
     lines: [
-      "Go to smartcomment.co.za and click “Create an account”, or sign in with Google.",
+      "Go to smartcomment.co.za and click \u201cCreate an account\u201d, or sign in with Google.",
       "Once your name appears as a user, all features are switched on for you.",
     ],
     image: "01_signin.png",
-    seconds: 8,
+    seconds: 11.7,
+    vo: "s01",
   },
-  // Chapter 2 — Ed-admin export
   {
-    chapter: "Ed-admin · Step 1",
+    chapter: "Ed-admin \u00b7 Step 1",
     title: "Open Assessment Premium",
     lines: ["In Ed-admin, go to Assessment Premium."],
     image: "s02_0.png",
-    seconds: 6,
+    seconds: 6.7,
+    vo: "s02",
   },
   {
-    chapter: "Ed-admin · Step 2",
+    chapter: "Ed-admin \u00b7 Step 2",
     title: "Select your registration class",
     lines: ["Choose the registration class you are writing reports for."],
     image: "s03_0.png",
-    seconds: 6,
+    seconds: 5.4,
+    vo: "s03",
   },
   {
-    chapter: "Ed-admin · Step 3",
+    chapter: "Ed-admin \u00b7 Step 3",
     title: "Open the report tool",
     lines: ["Select the report tool."],
     image: "s04_0.png",
-    seconds: 6,
+    seconds: 4.2,
+    vo: "s04",
   },
   {
-    chapter: "Ed-admin · Step 4",
-    title: "Choose “Report Card PDF”",
-    lines: ["Pick the Report Card PDF option — one page per student."],
+    chapter: "Ed-admin \u00b7 Step 4",
+    title: "Choose \u201cReport Card PDF\u201d",
+    lines: ["Pick the Report Card PDF option \u2014 one page per student."],
     image: "s05_0.png",
-    seconds: 6,
+    seconds: 6.6,
+    vo: "s05",
   },
   {
-    chapter: "Ed-admin · Step 5",
+    chapter: "Ed-admin \u00b7 Step 5",
     title: "Download the report",
     lines: [
       "Download the PDF. This single file holds every student, subject and term mark.",
     ],
     image: "s06_0.png",
-    seconds: 7,
+    seconds: 9.2,
+    vo: "s06",
   },
-  // Chapter 3 — creating the class
   {
-    chapter: "SmartComment · Step 1",
-    title: "Click “+ New class”",
-    lines: ["On your Classes page, click “+ New class”."],
+    chapter: "SmartComment \u00b7 Step 1",
+    title: "Click \u201c+ New class\u201d",
+    lines: ["On your Classes page, click \u201c+ New class\u201d."],
     image: "02_classes.png",
-    seconds: 6,
+    seconds: 6.6,
+    vo: "s07",
+    highlights: [
+      { x: 0.767, y: 0.160, w: 0.121, h: 0.048, label: "New class", delay: 2.6 },
+    ],
   },
   {
-    chapter: "SmartComment · Step 2",
-    title: "Name it and tick “registration class”",
+    chapter: "SmartComment \u00b7 Step 2",
+    title: "Name it and tick \u201cregistration class\u201d",
     lines: [
-      "Give the class a name, then tick “This is a registration class”.",
-      "Under Roster, click “Upload report PDF”.",
+      "Give the class a name, then tick \u201cThis is a registration class\u201d.",
+      "Under Roster, click \u201cUpload report PDF\u201d.",
     ],
     image: "04_newclass_reg.png",
-    seconds: 9,
+    seconds: 10.0,
+    vo: "s08",
+    highlights: [
+      { x: 0.130, y: 0.634, w: 0.348, h: 0.055, label: "Registration class", delay: 2.4 },
+      { x: 0.532, y: 0.464, w: 0.132, h: 0.048, label: "Upload report PDF", delay: 5.6 },
+    ],
   },
   {
-    chapter: "SmartComment · Step 3",
+    chapter: "SmartComment \u00b7 Step 3",
     title: "Select the report you downloaded",
-    lines: ["From your Downloads folder, choose the report PDF and click “Open”."],
+    lines: ["From your Downloads folder, choose the report PDF and click \u201cOpen\u201d."],
     image: "s09_0.png",
-    seconds: 7,
+    seconds: 6.9,
+    vo: "s09",
   },
   {
-    chapter: "SmartComment · Step 4",
+    chapter: "SmartComment \u00b7 Step 4",
     title: "Wait while the report is read",
     lines: [
-      "Roster will show “Reading report…”. This can take a few minutes — keep the page open.",
+      "Roster will show \u201cReading report\u2026\u201d. This can take a few minutes \u2014 keep the page open.",
     ],
     image: "s10_0.png",
-    seconds: 7,
+    seconds: 9.8,
+    vo: "s10",
   },
   {
-    chapter: "SmartComment · Step 5",
+    chapter: "SmartComment \u00b7 Step 5",
     title: "Check names and set gender",
     lines: [
       "Correct any spelling, then set each student's gender.",
       "Left unset, comments stay gender-neutral.",
     ],
     image: "s11_0.png",
-    seconds: 9,
+    seconds: 11.2,
+    vo: "s11",
   },
   {
     chapter: "Your class",
@@ -125,26 +153,32 @@ const STEPS: Step[] = [
       "Term 1, 2 and 3 marks for the whole class are stored and used when generating comments.",
     ],
     image: "05_classview.png",
-    seconds: 8,
+    seconds: 10.3,
+    vo: "s12",
   },
   {
     chapter: "Your class",
     title: "View the marksheet",
     lines: [
-      "Click “Marksheet” to see every subject and term, add assessments, or paste marks in from Excel.",
+      "Click \u201cMarksheet\u201d to see every subject and term, add assessments, or paste marks in from Excel.",
     ],
     image: "07_marksheet.png",
-    seconds: 8,
+    seconds: 10.0,
+    vo: "s13",
   },
-  // Chapter 4 — notes
   {
     chapter: "Notes",
     title: "Four ways to add your own notes",
     lines: [
-      "Open a student, then type a note — the quickest option for a line or two.",
+      "Open a student, then type a note \u2014 the quickest option for a line or two.",
     ],
     image: "09_notes.png",
-    seconds: 8,
+    seconds: 10.0,
+    vo: "s14",
+    highlights: [
+      { x: 0.132, y: 0.381, w: 0.090, h: 0.037, label: "Type", delay: 3.6 },
+      { x: 0.132, y: 0.594, w: 0.344, h: 0.046, label: "Save note", labelBelow: true, delay: 6.6 },
+    ],
   },
   {
     chapter: "Notes",
@@ -154,62 +188,91 @@ const STEPS: Step[] = [
       "Typing and voice notes give the best results.",
     ],
     image: "11_voice.png",
-    seconds: 8,
+    seconds: 10.7,
+    vo: "s15",
+    highlights: [
+      { x: 0.218, y: 0.381, w: 0.088, h: 0.037, label: "Voice tab", delay: 1.8 },
+      { x: 0.132, y: 0.443, w: 0.344, h: 0.052, label: "Record voice note", labelBelow: true, delay: 4.6 },
+    ],
   },
   {
     chapter: "Notes",
     title: "Photograph handwritten notes",
     lines: ["Snap your handwritten notes and SmartComment reads them."],
     image: "12_handwriting.png",
-    seconds: 7,
+    seconds: 8.6,
+    vo: "s16",
+    highlights: [
+      { x: 0.302, y: 0.381, w: 0.088, h: 0.037, label: "Photo tab", delay: 1.8 },
+    ],
   },
   {
     chapter: "Notes",
     title: "Or upload a file",
     lines: ["Already have notes saved? Upload the file straight onto the student."],
     image: "13_upload.png",
-    seconds: 7,
+    seconds: 7.2,
+    vo: "s17",
+    highlights: [
+      { x: 0.386, y: 0.381, w: 0.088, h: 0.037, label: "Attach tab", delay: 1.6 },
+    ],
   },
-  // Chapter 5 — generating
   {
     chapter: "Generating",
     title: "One student at a time",
     lines: [
-      "“Generate comment” writes a comment for the student on screen.",
-      "Use “Back to class” to return to the whole class.",
+      "\u201cGenerate comment\u201d writes a comment for the student on screen.",
+      "Use \u201cBack to class\u201d to return to the whole class.",
     ],
     image: "09_notes.png",
-    seconds: 8,
+    seconds: 11.0,
+    vo: "s18",
+    highlights: [
+      { x: 0.749, y: 0.186, w: 0.140, h: 0.048, label: "Generate comment", delay: 1.6 },
+      { x: 0.118, y: 0.132, w: 0.100, h: 0.040, label: "Back to class", labelBelow: true, delay: 7.0 },
+    ],
   },
   {
     chapter: "Generating",
     title: "Or the whole class at once",
     lines: [
-      "“Generate all” writes comments for every student in one go.",
+      "\u201cGenerate all\u201d writes comments for every student in one go.",
       "For very large classes, work through it in chunks.",
     ],
-    image: "06_classview_students.png",
-    seconds: 9,
+    image: "05_classview.png",
+    seconds: 9.5,
+    vo: "s19",
+    highlights: [
+      { x: 0.779, y: 0.186, w: 0.125, h: 0.048, label: "Generate all", delay: 1.5 },
+    ],
   },
-  // Chapter 6 — review
   {
     chapter: "Review & export",
     title: "Review your comments",
     lines: [
-      "“Review comments” shows every comment together, with word and character counts.",
+      "\u201cReview comments\u201d shows every comment together, with word and character counts.",
     ],
-    image: "08_review.png",
-    seconds: 8,
+    image: "05_classview.png",
+    seconds: 7.0,
+    vo: "s20",
+    highlights: [
+      { x: 0.645, y: 0.186, w: 0.140, h: 0.048, label: "Review comments", delay: 1.4 },
+    ],
   },
   {
     chapter: "Review & export",
     title: "Tweak, then export",
     lines: [
-      "Edit by hand, run “Spelling & grammar”, rewrite a selection, or regenerate.",
-      "When you're happy, export to DOCX or CSV — or copy them all.",
+      "Edit by hand, run \u201cSpelling & grammar\u201d, rewrite a selection, or regenerate.",
+      "When you're happy, export to DOCX or CSV \u2014 or copy them all.",
     ],
     image: "08_review.png",
-    seconds: 10,
+    seconds: 13.8,
+    vo: "s21",
+    highlights: [
+      { x: 0.350, y: 0.336, w: 0.120, h: 0.032, label: "Spelling & grammar", delay: 3.2 },
+      { x: 0.775, y: 0.220, w: 0.110, h: 0.042, label: "Export DOCX", delay: 8.6 },
+    ],
   },
 ];
 
@@ -287,7 +350,75 @@ const Panel: React.FC<{ step: Step }> = ({ step }) => {
   );
 };
 
-const Shot: React.FC<{ src: string; total: number }> = ({ src, total }) => {
+const Ring: React.FC<{ hl: Highlight }> = ({ hl }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const start = Math.round(hl.delay * fps);
+  const local = frame - start;
+  if (local < 0) return null;
+  const appear = spring({
+    frame: local,
+    fps,
+    config: { damping: 200 },
+    durationInFrames: 14,
+  });
+  const pulse = 0.5 + 0.5 * Math.sin((local / fps) * Math.PI * 1.6);
+  const pad = 12;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: `${hl.x * 100}%`,
+        top: `${hl.y * 100}%`,
+        width: `${hl.w * 100}%`,
+        height: `${hl.h * 100}%`,
+        opacity: appear,
+        transform: `scale(${interpolate(appear, [0, 1], [1.14, 1])})`,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          inset: -pad,
+          borderRadius: 16,
+          border: `4px solid ${colors.accent}`,
+          boxShadow: `0 0 0 ${6 + pulse * 10}px rgba(214,110,52,${0.16 - pulse * 0.09}), 0 10px 30px rgba(23,34,52,0.18)`,
+          background: `rgba(214,110,52,${0.06 + pulse * 0.06})`,
+        }}
+      />
+      {hl.label ? (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            ...(hl.labelBelow
+              ? { top: `calc(100% + ${pad + 14}px)` }
+              : { bottom: `calc(100% + ${pad + 14}px)` }),
+            transform: "translateX(-50%)",
+            background: colors.accent,
+            color: "#fff",
+            fontFamily: "Inter",
+            fontSize: 20,
+            fontWeight: 600,
+            padding: "8px 16px",
+            borderRadius: 999,
+            whiteSpace: "nowrap",
+            boxShadow: "0 8px 22px rgba(23,34,52,0.25)",
+          }}
+        >
+          {hl.label}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+const Shot: React.FC<{ src: string; total: number; highlights?: Highlight[] }> = ({
+  src,
+  total,
+  highlights,
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const s = spring({ frame, fps, config: { damping: 200 }, durationInFrames: 24 });
@@ -306,8 +437,8 @@ const Shot: React.FC<{ src: string; total: number }> = ({ src, total }) => {
     >
       <div
         style={{
+          position: "relative",
           borderRadius: 20,
-          overflow: "hidden",
           border: `1px solid rgba(23,34,52,0.10)`,
           boxShadow: "0 40px 90px rgba(23,34,52,0.20)",
           background: colors.cream,
@@ -319,8 +450,11 @@ const Shot: React.FC<{ src: string; total: number }> = ({ src, total }) => {
       >
         <Img
           src={staticFile(`images/tut/${src}`)}
-          style={{ display: "block", width: "100%", height: "auto" }}
+          style={{ display: "block", width: "100%", height: "auto", borderRadius: 20 }}
         />
+        {(highlights ?? []).map((hl, i) => (
+          <Ring key={i} hl={hl} />
+        ))}
       </div>
     </div>
   );
@@ -328,10 +462,12 @@ const Shot: React.FC<{ src: string; total: number }> = ({ src, total }) => {
 
 const StepScene: React.FC<{ step: Step; total: number }> = ({ step, total }) => (
   <AbsoluteFill style={{ flexDirection: "row", alignItems: "center" }}>
+    {step.vo ? <Audio src={staticFile(`audio/vo/${step.vo}.mp3`)} /> : null}
     <Panel step={step} />
-    <Shot src={step.image} total={total} />
+    <Shot src={step.image} total={total} highlights={step.highlights} />
   </AbsoluteFill>
 );
+
 
 const Title: React.FC = () => {
   const frame = useCurrentFrame();
@@ -430,8 +566,8 @@ const Bg: React.FC = () => {
   );
 };
 
-export const TITLE_FRAMES = f(5);
-export const OUTRO_FRAMES = f(5);
+export const TITLE_FRAMES = f(12.6);
+export const OUTRO_FRAMES = f(6.4);
 export const TOTAL_FRAMES =
   TITLE_FRAMES + OUTRO_FRAMES + STEPS.reduce((a, s) => a + f(s.seconds ?? 7), 0);
 
@@ -441,6 +577,7 @@ export const Tutorial: React.FC = () => {
     <AbsoluteFill style={{ backgroundColor: colors.bg }}>
       <Bg />
       <Sequence from={0} durationInFrames={TITLE_FRAMES}>
+        <Audio src={staticFile("audio/vo/intro.mp3")} />
         <Title />
       </Sequence>
       {STEPS.map((step, i) => {
@@ -454,6 +591,7 @@ export const Tutorial: React.FC = () => {
         );
       })}
       <Sequence from={cursor} durationInFrames={OUTRO_FRAMES}>
+        <Audio src={staticFile("audio/vo/outro.mp3")} />
         <Outro />
       </Sequence>
       <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "flex-end", padding: 44 }}>
