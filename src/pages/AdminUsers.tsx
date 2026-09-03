@@ -39,7 +39,7 @@ export default function AdminUsers() {
       .from("profiles")
       .select("id, email, full_name, credits_balance, school_sponsored, billing_override")
       .order("email");
-    setProfiles((data as Profile[]) ?? []);
+    setProfiles((data as unknown as Profile[]) ?? []);
     setLoading(false);
   };
 

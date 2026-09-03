@@ -54,11 +54,11 @@ export default function ClassView() {
     if (!id) return;
     (async () => {
       const { data: c } = await supabase.from("classes").select("*").eq("id", id).single();
-      setKlass(c);
+      setKlass(c as unknown as Klass);
       setReqs(c?.requirements ?? {});
       // A registration class exists to draw on the imported marksheet, so lead
       // with marks switched on rather than making the teacher find the toggle.
-      if (c?.is_registration) setIncludeMarks(true);
+      if ((c as any)?.is_registration) setIncludeMarks(true);
       const { data: s } = await supabase.from("students").select("id, name, position, overrides, included_terms").eq("class_id", id).order("position");
       setStudents((s ?? []) as Student[]);
       const ids = (s ?? []).map((x) => x.id);
@@ -152,7 +152,7 @@ export default function ClassView() {
     if (!klass) return;
     setSavingReqs(true);
     const { minWords: _mw, maxWords: _xw, ...toSave } = reqs as Record<string, unknown>;
-    const { error } = await supabase.from("classes").update({ requirements: toSave }).eq("id", klass.id);
+    const { error } = await supabase.from("classes").update({ requirements: toSave as never }).eq("id", klass.id);
     setSavingReqs(false);
     if (error) toast.error(error.message);
     else toast.success("Requirements saved");

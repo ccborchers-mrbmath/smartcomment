@@ -133,7 +133,7 @@ export default function Dashboard() {
       const { data: cls } = await supabase
         .from("classes")
         .select("id, name, year_grade, subject, term, is_registration, created_at")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false }) as { data: any[] | null };
       const ids = (cls ?? []).map((c) => c.id);
       let counts: Record<string, number> = {};
       if (ids.length) {

@@ -55,9 +55,9 @@ export default function ClassMarksheet() {
         supabase.from("students").select("id, name, first_name, last_name").eq("class_id", id),
         supabase.from("assessments").select("*").eq("class_id", id).order("position"),
       ]);
-      if (c.data) setKlass(c.data as Klass);
+      if (c.data) setKlass(c.data as unknown as Klass);
       setStudents((s.data ?? []) as Student[]);
-      setAssessments((a.data ?? []) as Assessment[]);
+      setAssessments((a.data ?? []) as unknown as Assessment[]);
       const aIds = (a.data ?? []).map((x: any) => x.id);
       if (aIds.length) {
         const { data: m } = await supabase.from("assessment_marks").select("*").in("assessment_id", aIds);
@@ -87,7 +87,7 @@ export default function ClassMarksheet() {
       .select()
       .single();
     if (error) { toast.error(error.message); return; }
-    setAssessments((p) => [...p, data as Assessment]);
+    setAssessments((p) => [...p, data as unknown as Assessment]);
   };
 
   const updateAssessment = async (aid: string, patch: Partial<Assessment>) => {
@@ -95,7 +95,7 @@ export default function ClassMarksheet() {
   };
 
   const commitAssessment = async (aid: string, patch: Partial<Assessment>) => {
-    const { error } = await supabase.from("assessments").update(patch).eq("id", aid);
+    const { error } = await supabase.from("assessments").update(patch as never).eq("id", aid);
     if (error) toast.error(error.message);
   };
 
