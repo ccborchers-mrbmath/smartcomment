@@ -64,7 +64,7 @@ export default function Requirements() {
     const { minWords: _mw, maxWords: _xw, ...toSave } = reqs as Record<string, unknown>;
     const { error } = await supabase
       .from("teacher_defaults")
-      .upsert({ teacher_id: u.user!.id, requirements: toSave });
+      .upsert({ teacher_id: u.user!.id, requirements: toSave as never });
     setSaving(false);
     if (error) toast.error(error.message);
     else toast.success("Default requirements saved — applied to all classes");

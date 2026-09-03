@@ -337,7 +337,7 @@ export default function NewClass() {
           subject: subject || null,
           is_registration: isRegistration,
           active_term: latestTerm ?? "2026 Term 1",
-        })
+        } as never)
         .select()
         .single();
       if (error) throw error;
@@ -363,7 +363,7 @@ export default function NewClass() {
       });
       const { data: createdStudents, error: sErr } = await supabase
         .from("students")
-        .insert(rows)
+        .insert(rows as never)
         .select("id, position");
       if (sErr) throw sErr;
 
@@ -383,7 +383,7 @@ export default function NewClass() {
             weight: 1,
             position: i,
             class_average: c.classAverage,
-          })))
+          })) as never)
           .select("id, name, term");
         if (aErr) throw aErr;
 
