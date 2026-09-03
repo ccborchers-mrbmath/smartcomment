@@ -383,7 +383,7 @@ export default function NewClass() {
             weight: 1,
             position: i,
             class_average: c.classAverage,
-          })))
+          })) as never)
           .select("id, name, term");
         if (aErr) throw aErr;
 
