@@ -274,17 +274,12 @@ serve(async (req) => {
       return null;
     };
 
-    // Attendance is banded in code so the model never sees or reasons about the
-    // raw figure — it receives a directive, or nothing at all.
-    const attendanceDirective = (days: number | null | undefined): string | null => {
-      if (days === null || days === undefined) return null;
-      const n = Number(days);
-      if (!Number.isFinite(n) || n <= 2) return null;
-      if (n <= 4) {
-        return "ATTENDANCE: some lessons were missed. Encourage them to make sure any work missed has been caught up. Do not state the number of days.";
-      }
-      return "ATTENDANCE: a significant number of lessons were missed. Express measured concern, and strongly encourage attending Help Sessions (the school's formal after-hours support — use that exact capitalised term) to catch up so nothing missed is left unaddressed before examinations. Do not state the number of days.";
-    };
+    // Attendance used to be banded here from students.days_absent and turned
+    // into a directive. Removed: days_absent only ever comes from the EdAdmin
+    // import, and a figure on a report says nothing about why a student was
+    // away or whether it is worth raising with a parent. Teachers found the
+    // resulting sentences wrong as often as right. Absence is now raised only
+    // when the teacher raises it in their own notes.
 
     const registrationFraming = `
 
@@ -298,14 +293,14 @@ YOU ARE WRITING AS A REGISTRATION TEACHER (also called a form teacher or home gr
 
 VOICE — IMPERSONAL:
 - A registration comment speaks for the school, not for one teacher. NEVER use "I", "me", "my", "we", "our" or "us" anywhere in the comment.
-- Recommendations and observations are phrased impersonally. Write "It is recommended that [Name] attends Help Sessions", NEVER "I recommend that [Name] attends Help Sessions". Write "The improvement in [Subject] is pleasing to note", NEVER "I am pleased with the improvement".
+- Recommendations and observations are phrased impersonally. Write "It is recommended that [Name] continues to work steadily at [Subject]", NEVER "I recommend that [Name] works at it". Write "The improvement in [Subject] is pleasing to note", NEVER "I am pleased with the improvement".
 - This rule outranks the teacher's previous comments. If those samples are written in the first person, still write impersonally here — take vocabulary, warmth and rhythm from them, but not the first person.
 
 TONE — WARM, NEVER BLUNT:
 - Warm and encouraging throughout, while staying formal. Every comment should read as though written by someone who knows the student and wants them to do well.
 - Warmth is in HOW you phrase what you have been told, NEVER in adding something you have not been told. Do not invent effort, attitude, potential, circumstances, progress, or a reason for a difficulty in order to soften a concern. If the teacher has not said the student is trying hard, you may not say it. An encouraging tone applied to the real facts is what is wanted; an encouraging fiction is not.
 - A concern is raised as something the student can address with support — never as a verdict, and never as a bare statement of failure. The difference is in the framing, not in the content: "[Subject] has proved more challenging, and focused attention in this area will be of benefit" says exactly as much as "[Subject] was poor", and says it in the register the school expects.
-- Where a comment carries a concern, close on what the student can do about it rather than on the difficulty itself. The last thing the parent reads should be constructive. Recommending Help Sessions is always available to you for this; anything beyond that must come from the teacher's notes.
+- Where a comment carries a concern, close on what the student can do about it rather than on the difficulty itself. The last thing the parent reads should be constructive. Draw that close from the teacher's notes where they support one; where they do not, a plain forward-looking encouragement to keep working at the area is enough. Do not invent a plan, a support arrangement, a remedy or a promise — and in particular do not reach for Help Sessions to fill the gap.
 - The examples above use [Name] and [Subject] as placeholders. They show sentence shape only. Never copy an example's subject, wording or claims into a comment.
 
 HOW TO USE THE SUBJECT LIST:
@@ -319,17 +314,20 @@ HOW TO USE THE SUBJECT LIST:
 - NEVER characterise the SIZE of a movement — not for a subject, and not for the overall average either. You are told only the direction, never the magnitude, so you cannot know whether a change was slight or severe. Do not write "slightly", "slight", "marginally", "a little", "somewhat", "significantly", "sharply", "dramatically" or any equivalent about any movement anywhere in the comment. Give the direction and leave it there.
 - WORD CHOICE for a movement in marks. Use "an increase in her marks" / "a decrease in her marks", or "improvement" / "has not maintained", or simply name the direction plainly. Do NOT use "rise", "risen", "drop", "dropped", "fell", "fallen", "slipped", "declined", "strong", "weak" or "poor" — the school considers these too blunt for a report, and several of them imply a size you have not been told.
 - Naming marks as a category is allowed and is the school's preferred wording: "an increase in her marks" is correct and does NOT breach the rule below about figures. What you may never give is an actual number, percentage, grade or position.
-- Whenever you flag a subject as a concern, the comment must recommend Help Sessions. Use that exact term, capitalised as "Help Sessions" — it is the school's formal name for its after-hours support, and no paraphrase is acceptable. Phrase the recommendation impersonally: "It is recommended that she attends Help Sessions", or "Attendance at Help Sessions would support her in this area". Never "I recommend".
-- Recommend Help Sessions ONCE in the comment, even where several things point to them. Do not repeat the recommendation per subject.
 - A subject marked "reached an excellent standard" deserves clear congratulation. Say so plainly; the student should feel it.
 - NEVER state, imply or hint at any mark, percentage, grade, position, ranking or "out of" figure for any subject. Never say how much something rose or fell by. Describe direction and significance in words only.
 - Never compare this student to other students, to the form, the class, or to any average.
 - If the list says none, say nothing about individual subjects at all.
 - An OVERALL TREND directive, when present, tells you how the student's overall average moved relative to the subjects you are naming. Like the subject list, it is a FACT and not wording — it is written in clipped note form deliberately, and copying its phrasing into a report would read badly. Express it in full, natural prose of your own. Work it in ONCE. Never state the average itself, never say by how much it moved, and never compare it to anyone else's.
 
-ATTENDANCE:
-- Mention attendance ONLY if the student block carries an ATTENDANCE directive, and then follow exactly what it says. Never state the number of days absent.
-- If there is no ATTENDANCE line, say nothing whatsoever about attendance — do not praise it, and do not remark on it being good.`;
+WHAT THE MARKS MAY AND MAY NOT TELL YOU:
+- The subject list is evidence of ONE thing: what the student's performance is and how it has moved. It is NOT evidence about attendance, effort, conduct, attitude, motivation, or what support the student needs. Never infer any of those from marks.
+
+ATTENDANCE AND HELP SESSIONS — THE TEACHER'S CALL, NEVER YOURS:
+- Say NOTHING about attendance or absence unless the teacher's own notes raise it. You are given no absence figure, and a figure would not tell you why a student was away or whether it is worth putting to a parent. Do not remark on attendance being good either.
+- NEVER recommend Help Sessions on your own judgement. A subject going backwards is NOT by itself a reason to recommend them. Whether a student needs that support depends on things the marks cannot show, and the decision belongs to the teacher.
+- Recommend Help Sessions ONLY where the teacher's notes ask for it or plainly call for it. Where they do, use that exact term, capitalised as "Help Sessions" — it is the school's formal name for its after-hours support, and no paraphrase is acceptable. Phrase it impersonally — "It is recommended that [Name] attends Help Sessions" — and say it ONCE, however many things point to it.
+- If the teacher's notes say nothing about Help Sessions, the comment says nothing about Help Sessions.`;
 
     const systemPrompt = `You write end-of-term school report comments for a teacher.
 ${isRegistration ? registrationFraming : ""}
@@ -350,8 +348,6 @@ ${reqs.mustInclude ? `- Must include: ${reqs.mustInclude}` : ""}
 ${reqs.notes ? `\nAdditional notes: ${reqs.notes}` : ""}
 
 Output one comment per student, faithful to the notes provided. Never invent facts.
-
-If a student block includes DAYS ABSENT, use it only when it genuinely matters — sustained absence that plausibly affected progress, or attendance worth praising. Never recite the number itself. If it includes EXTRA-CURRICULAR, weave those activities in naturally where they add to the picture of the student.
 
 CRITICAL PRONOUN RULE: Each student block has a PRONOUNS field. Use ONLY those pronouns when referring to the student. The per-student PRONOUNS field overrides any global pronoun setting.
 
@@ -431,8 +427,6 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
       }
 
       const extras: string[] = [];
-      const attendance = isRegistration ? attendanceDirective(s.days_absent) : null;
-      if (attendance) extras.push(attendance);
       if (isRegistration && hasMarksData) {
         const trend = divergenceDirective(s, selectSubjects(s.id));
         if (trend) extras.push(trend);

@@ -102,6 +102,7 @@ REGISTRATION COMMENT RULES (this comment is a registration/form teacher comment)
 - Write impersonally. NEVER use "I", "me", "my", "we", "our" or "us". Write "It is recommended that [Name] attends Help Sessions", never "I recommend that [Name] attends". [Name] is a placeholder showing sentence shape — use the student's actual first name. This holds even if the style reference above is written in the first person.
 - WORD CHOICE for a movement in marks: use "an increase in her marks" / "a decrease in her marks", or "improvement". Do NOT use "rise", "risen", "drop", "dropped", "fell", "fallen", "slipped", "declined", "strong", "weak" or "poor" — the school considers these too blunt for a report. Naming marks as a category is fine and does not breach the rule against figures; giving an actual number never is.
 - Warm and encouraging, never blunt. A concern reads as something the student can address with support, not as a verdict.
+- NEVER introduce a recommendation for Help Sessions, or any remark about attendance or absence, that the selection did not already contain. Whether to raise either is the teacher's call, not yours. If the selection already mentions Help Sessions, keep it; if it does not, do not add it.
 ` : ""}
 STUDENT: ${student.name}
 PRONOUNS: ${pronouns}
