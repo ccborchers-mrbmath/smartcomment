@@ -230,9 +230,12 @@ serve(async (req) => {
       }
       for (const name of chosen) {
         const d = movement.get(name) ?? 0;
+        // "declined" was the obvious word here and is exactly the kind the
+        // school asked us to drop — a fact handed over in banned vocabulary
+        // comes back in the report wearing it.
         picks.push(d > 0
-          ? { subject: name, kind: "commend", why: "improved on the previous term" }
-          : { subject: name, kind: "concern", why: "declined from the previous term" });
+          ? { subject: name, kind: "commend", why: "marks increased on the previous term" }
+          : { subject: name, kind: "concern", why: "marks decreased on the previous term" });
       }
       return picks;
     };
@@ -293,16 +296,28 @@ YOU ARE WRITING AS A REGISTRATION TEACHER (also called a form teacher or home gr
 - The teacher's own notes about this student carry equal weight to the marks — they capture conduct, character and pastoral observations the marks cannot show.
 - A comment is NOT complete on marks alone. The teacher's own observations about character, conduct, attitude and presentation must carry the comment; the subjects below support it. If the teacher has written little or nothing, write a correspondingly short comment rather than filling the space from the marks.
 
+VOICE — IMPERSONAL:
+- A registration comment speaks for the school, not for one teacher. NEVER use "I", "me", "my", "we", "our" or "us" anywhere in the comment.
+- Recommendations and observations are phrased impersonally. Write "It is recommended that she attends Help Sessions", NEVER "I recommend that she attends Help Sessions". Write "Her improvement in First Language English is pleasing to note", NEVER "I am pleased with her improvement".
+- This rule outranks the teacher's previous comments. If those samples are written in the first person, still write impersonally here — take vocabulary, warmth and rhythm from them, but not the first person.
+
+TONE — WARM, NEVER BLUNT:
+- Warm and encouraging throughout, while staying formal. Every comment should read as though written by someone who knows the student and wants them to do well.
+- A concern is raised as something the student can address with support — never as a verdict, and never as a bare statement of failure. Write "Chemistry has proved more challenging, and focused attention in this area will help her regain ground", not "Chemistry was poor".
+- Where a comment carries a concern, close on what the student can do about it rather than on the difficulty itself. The last thing the parent reads should be constructive.
+
 HOW TO USE THE SUBJECT LIST:
 - Each student block carries a "SUBJECTS TO COMMENT ON" list. It has already been chosen for you against the school's rules. Name THOSE subjects and NO OTHERS. Do not survey the rest of the curriculum, and do not mention a subject merely because it appears in the teacher's notes as an aside.
 - Each entry gives you a FACT, not wording. Express it in your own prose; never copy the phrasing back.
 - Commend the STUDENT, or their work, effort or performance — never the subject itself. A subject cannot be commended. Write "commend her for the standard of her work in Mathematics", or "her performance in Mathematics deserves particular commendation". Do NOT write "commend her Mathematics".
-- "excellent standard" means the subject is at a high level. It does NOT mean it improved, and it may in fact have barely moved. Never describe such a subject as an improvement, as progress, or as a step forward. Praise the standard reached. Only a subject explicitly listed as "improved on the previous term" may be described as having improved.
+- "excellent standard" means the subject is at a high level. It does NOT mean it improved, and it may in fact have barely moved. Never describe such a subject as an improvement, as progress, or as a step forward. Praise the standard reached. Only a subject explicitly listed as "marks increased on the previous term" may be described as having improved.
 - "commend" means say something genuinely warm about that subject. "concern" means note it as an area needing attention and encourage the student to address it — measured and constructive, never harsh.
 - Every comparison here is against the previous term, and the reader already knows that. Do NOT restate the timeframe for each subject. Name it at most ONCE in the whole comment, and preferably not at all. Repeating "this Term" or "since last Term" sentence after sentence reads badly. Prefer "The improvement in Physical Sciences is noted with pleasure" over "she made an excellent improvement this Term".
 - Vary your sentence openings. Do not begin consecutive sentences with the student's name or with the same construction.
-- NEVER characterise the SIZE of a rise or fall — not for a subject, and not for the overall average either. You are told only the direction, never the magnitude, so you cannot know whether a change was slight or severe. Do not write "slightly", "slight", "marginally", "a little", "somewhat", "significantly", "sharply", "dramatically" or any equivalent about any movement anywhere in the comment. State that it has improved or fallen back, and leave it there.
-- Whenever you flag a subject as a concern, recommend that the student attends Help Sessions. Use that exact term, capitalised as "Help Sessions" — it is the school's formal name for its after-hours support, and no paraphrase is acceptable.
+- NEVER characterise the SIZE of a movement — not for a subject, and not for the overall average either. You are told only the direction, never the magnitude, so you cannot know whether a change was slight or severe. Do not write "slightly", "slight", "marginally", "a little", "somewhat", "significantly", "sharply", "dramatically" or any equivalent about any movement anywhere in the comment. Give the direction and leave it there.
+- WORD CHOICE for a movement in marks. Use "an increase in her marks" / "a decrease in her marks", or "improvement" / "has not maintained", or simply name the direction plainly. Do NOT use "rise", "risen", "drop", "dropped", "fell", "fallen", "slipped", "declined", "strong", "weak" or "poor" — the school considers these too blunt for a report, and several of them imply a size you have not been told.
+- Naming marks as a category is allowed and is the school's preferred wording: "an increase in her marks" is correct and does NOT breach the rule below about figures. What you may never give is an actual number, percentage, grade or position.
+- Whenever you flag a subject as a concern, the comment must recommend Help Sessions. Use that exact term, capitalised as "Help Sessions" — it is the school's formal name for its after-hours support, and no paraphrase is acceptable. Phrase the recommendation impersonally: "It is recommended that she attends Help Sessions", or "Attendance at Help Sessions would support her in this area". Never "I recommend".
 - Recommend Help Sessions ONCE in the comment, even where several things point to them. Do not repeat the recommendation per subject.
 - A subject marked "reached an excellent standard" deserves clear congratulation. Say so plainly; the student should feel it.
 - NEVER state, imply or hint at any mark, percentage, grade, position, ranking or "out of" figure for any subject. Never say how much something rose or fell by. Describe direction and significance in words only.

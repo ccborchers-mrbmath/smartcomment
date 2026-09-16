@@ -91,13 +91,18 @@ ${reqs.bannedPhrases ? `- Avoid these phrases: ${reqs.bannedPhrases}` : ""}
 
 REPORT INTEGRITY RULES (these bind the rewrite exactly as they bound the original comment):
 - NEVER state, imply or hint at any mark, percentage, grade, position, ranking or "out of" figure — for a subject or for the overall average. Never say how much anything rose or fell by.
-- NEVER characterise the SIZE of a rise or fall. You do not know the magnitude, so you cannot know whether a change was slight or severe. Do not write "slightly", "slight", "marginally", "a little", "somewhat", "significantly", "sharply", "dramatically" or any equivalent. Direction only: it improved, or it fell back.
+- NEVER characterise the SIZE of a movement. You do not know the magnitude, so you cannot know whether a change was slight or severe. Do not write "slightly", "slight", "marginally", "a little", "somewhat", "significantly", "sharply", "dramatically" or any equivalent. Direction only.
 - Never compare this student to other students, to the form, the class, or to any average.
-- Do not introduce a claim the selection did not already make. You are changing how something is said, not what is being asserted. If the selection says a subject fell back, the replacement says that too — no softening it into something milder, no hardening it into something worse.
+- Do not introduce a claim the selection did not already make. You are changing how something is said, not what is being asserted. If the selection says a subject has gone backwards, the replacement says that too — no softening it into something milder, no hardening it into something worse.
 - Do not state the number of days a student was absent.
 - If the comment recommends Help Sessions, keep that exact term, capitalised — it is the school's formal name for its after-hours support and no paraphrase is acceptable.
 - The replacement must be at most ${selectionBudget} characters, so that the whole comment stays within its ${maxChars}-character limit.
-
+${cls?.is_registration ? `
+REGISTRATION COMMENT RULES (this comment is a registration/form teacher comment):
+- Write impersonally. NEVER use "I", "me", "my", "we", "our" or "us". Write "It is recommended that she attends Help Sessions", never "I recommend that she attends". This holds even if the style reference above is written in the first person.
+- WORD CHOICE for a movement in marks: use "an increase in her marks" / "a decrease in her marks", or "improvement". Do NOT use "rise", "risen", "drop", "dropped", "fell", "fallen", "slipped", "declined", "strong", "weak" or "poor" — the school considers these too blunt for a report. Naming marks as a category is fine and does not breach the rule against figures; giving an actual number never is.
+- Warm and encouraging, never blunt. A concern reads as something the student can address with support, not as a verdict.
+` : ""}
 STUDENT: ${student.name}
 PRONOUNS: ${pronouns}
 NAME RULE: Refer to the student ONLY as "${firstName}" — never the surname, never the full name, never initials, never "Mr/Mrs/Ms".
