@@ -509,14 +509,21 @@ interface Extraction {
 // request nor the generated JSON gets large enough to run past the edge
 // function's wall clock — sending the whole form in a single call is what
 // made this time out.
-async function callGemini(userParts: any[], label: string): Promise<Extraction> {
+async function callGemini(userParts: any[], label: string, deadline: number): Promise<Extraction> {
   // One retry on a rate limit. Running every page group at once (see below)
   // makes a 429 more likely than it was at three at a time, and failing the
   // whole upload because one call out of seven was throttled would be worse
   // than waiting a couple of seconds.
+  //
+  // Every attempt is bounded by the caller's deadline rather than a flat 90s.
+  // The gateway hangs up at 150s regardless, so a call that would run past
+  // that is already lost — better to give up while there is still time to
+  // return the pages that did come back.
   for (let attempt = 0; ; attempt++) {
+    const budget = Math.min(90_000, deadline - Date.now());
+    if (budget < 5_000) throw new Error(`Ran out of time before reading ${label}.`);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 90_000);
+    const timer = setTimeout(() => controller.abort(), budget);
     try {
       const res = await fetch(
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent",
@@ -532,7 +539,7 @@ async function callGemini(userParts: any[], label: string): Promise<Extraction> 
         },
       );
       if (res.status === 429) {
-        if (attempt === 0) {
+        if (attempt === 0 && deadline - Date.now() > 20_000) {
           clearTimeout(timer);
           await new Promise((r) => setTimeout(r, 2000));
           continue;
@@ -550,7 +557,7 @@ async function callGemini(userParts: any[], label: string): Promise<Extraction> 
       (parsed as any).__usage = data.usageMetadata;
       return parsed;
     } catch (e) {
-      if ((e as Error).name === "AbortError") throw new Error(`Timed out reading ${label}. Try splitting the report into smaller PDFs.`);
+      if ((e as Error).name === "AbortError") throw new Error(`Timed out reading ${label}.`);
       throw e;
     } finally {
       clearTimeout(timer);
@@ -584,6 +591,10 @@ serve(async (req) => {
     }
 
     const t0 = Date.now();
+    // The gateway gives up on a request after 150s. Everything downstream is
+    // bounded against this so the function returns what it has rather than
+    // being cut off mid-flight, which reaches the browser as an opaque error.
+    const deadline = t0 + 135_000;
     stage = "decode_base64";
     const pdfBytes = Uint8Array.from(atob(fileBase64), (c) => c.charCodeAt(0));
     // Logged so a rejected upload can be sized after the fact. The gateway
@@ -644,13 +655,19 @@ serve(async (req) => {
 
     let year = "", form = "", terms: string[] = [], students: any[] = [];
     const usages: any[] = [];
+    const failedPages: string[] = [];
 
     stage = pages.length > 0 ? "gemini_batched" : "gemini_vision";
     if (pages.length > 0) {
       // Text-layer path: batch the pages into small calls and run a few at a
       // time. The PDF bytes are not sent — the coordinates carry everything
       // the model needs, and leaving the file out keeps each call fast.
-      const GROUP = 4;
+      // Two pages a call, not four. A 21-page form failed on "Timed out
+      // reading pages 9-12": one group ran past the 90s abort inside
+      // callGemini while neighbouring groups finished in 60-86s, so the whole
+      // upload was sitting a few seconds from the edge. Halving the pages per
+      // call halves the work each one has to do.
+      const GROUP = 2;
       const groups: { from: number; text: string }[] = [];
       for (let i = 0; i < pages.length; i += GROUP) {
         groups.push({
@@ -665,20 +682,33 @@ serve(async (req) => {
       // Each call takes roughly the same time whether or not others are in
       // flight, so the wall clock is essentially the number of waves. Capped
       // so a very large form does not fire off an unbounded burst.
-      const CONCURRENCY = Math.min(8, Math.max(3, groups.length));
+      const CONCURRENCY = Math.min(12, Math.max(3, groups.length));
 
       const results: Extraction[] = new Array(groups.length);
       for (let i = 0; i < groups.length; i += CONCURRENCY) {
         const wave = groups.slice(i, i + CONCURRENCY);
-        const settled = await Promise.all(wave.map((g, k) =>
+        // allSettled, not all: one slow group used to reject and take the
+        // entire import down with it, losing twenty pages that had been read
+        // perfectly well. A gap in the marksheet the teacher can see and fix
+        // beats no marksheet at all.
+        const settled = await Promise.allSettled(wave.map((g) =>
           callGemini(
             [{
               text: `Extract every student page below. Each line is one horizontal row of a page; every cell carries its exact x coordinate. Use those x coordinates to decide which term/column each number belongs to. A row with fewer numbers than the full set means some cells are genuinely blank — return "" for those and never shift a value across.\n\n${g.text}`,
             }],
             `pages ${g.from + 1}-${Math.min(g.from + GROUP, pages.length)}`,
-          ).then((r) => ({ idx: i + k, r })),
+            deadline,
+          ),
         ));
-        for (const { idx, r } of settled) results[idx] = r;
+        settled.forEach((res, k) => {
+          const g = wave[k];
+          const label = `${g.from + 1}-${Math.min(g.from + GROUP, pages.length)}`;
+          if (res.status === "fulfilled") results[i + k] = res.value;
+          else {
+            failedPages.push(label);
+            console.error(`extract-reports: group pages ${label} failed:`, res.reason?.message ?? res.reason);
+          }
+        });
       }
 
       for (const r of results) {
@@ -697,6 +727,7 @@ serve(async (req) => {
           { inline_data: { mime_type: mimeType ?? "application/pdf", data: fileBase64 } },
         ],
         "whole document",
+        deadline,
       );
       year = r.year ?? ""; form = r.form ?? ""; terms = r.terms ?? []; students = r.students ?? [];
       if ((r as any).__usage) usages.push((r as any).__usage);
@@ -717,7 +748,13 @@ serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ year, form, terms, students, positional_layer: pages.length > 0 }),
+      JSON.stringify({
+        year, form, terms, students,
+        positional_layer: pages.length > 0,
+        // Named so the teacher knows which students to check rather than
+        // discovering a hole in the marksheet later.
+        ...(failedPages.length ? { partial_error: `Pages ${failedPages.join(", ")} could not be read, so some students may be missing. Check the marksheet, and re-import if needed.` } : {}),
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
