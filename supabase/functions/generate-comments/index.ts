@@ -24,7 +24,14 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 // of this app where quality actually matters, and the prompt's subtler rules
 // (the style bank outranking directives, the impersonal voice, the character
 // ceiling) are exactly what a smaller model follows least reliably.
-const COMMENT_MODEL = Deno.env.get("GEMINI_COMMENT_MODEL") ?? "gemini-3.1-pro-preview";
+// TEMPORARY (2026-09-17): the 3.1 Pro daily cap (250 requests/model/day) was
+// exhausted mid-afternoon with a whole staff still to write registration
+// comments before an 08:00 deadline. Flash has its own separate 10,000/day
+// counter, so it is the only way through today. Flash holds this prompt's
+// stacked constraints less reliably — first-person slips, banned vocabulary,
+// flatter phrasing — so this is a deadline measure, not a new default.
+// RESTORE "gemini-3.1-pro-preview" once the quota resets (00:00 PT / 09:00 SAST).
+const COMMENT_MODEL = Deno.env.get("GEMINI_COMMENT_MODEL") ?? "gemini-3-flash-preview";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
