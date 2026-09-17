@@ -33,6 +33,18 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // Supplied by the Supabase edge runtime; not in the ambient Deno types.
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
 
+// Gemini 3.1 Pro is capped at 250 requests a day even on a paid Tier 1
+// account — a property of the model, not the billing, so topping up does not
+// move it. Reading one 21-student form is seven of those, and imports were
+// spending the same 250 that comment generation needs. Gemini 3 Flash allows
+// 10,000 a day on the same account.
+//
+// Reading marks off a positional text layer is mechanical work: the
+// coordinates are given, the schema is fixed, and the model is not being asked
+// to judge anything. Settable from the Supabase dashboard so the model can be
+// changed without a deploy.
+const EXTRACT_MODEL = Deno.env.get("GEMINI_EXTRACT_MODEL") ?? "gemini-3-flash-preview";
+
 async function inflate(bytes: Uint8Array): Promise<Uint8Array | null> {
   for (const format of ["deflate", "deflate-raw"] as const) {
     try {
@@ -533,7 +545,7 @@ async function callGemini(userParts: any[], label: string, deadline: number): Pr
     const timer = setTimeout(() => controller.abort(), budget);
     try {
       const res = await fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent",
+        `https://generativelanguage.googleapis.com/v1beta/models/${EXTRACT_MODEL}:generateContent`,
         {
           method: "POST",
           headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
@@ -689,7 +701,7 @@ async function runExtraction(
     await logUsage({
       userId,
       functionName: "extract-reports",
-      model: "google/gemini-3.1-pro-preview",
+      model: `google/${EXTRACT_MODEL}`,
       units: students.length,
       usage: {
         prompt_tokens: usages.reduce((s, u) => s + (u?.promptTokenCount ?? 0), 0),
