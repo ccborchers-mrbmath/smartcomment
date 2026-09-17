@@ -119,14 +119,38 @@ async function positionalPages(pdf: Uint8Array): Promise<string[]> {
     }
 
     const out = await inflate(pdf.subarray(start, dataEnd));
-    if (!out) continue;
-    const content = latin1(out);
+    // A stream that will not inflate is not necessarily an image. PDFs may
+    // carry their content streams uncompressed, and skipping those made a
+    // perfectly good text layer look exactly like a scan. Try the raw bytes,
+    // but only accept them as text — a JPEG that happens to contain the bytes
+    // "Tj" would otherwise be parsed into nonsense rows.
+    let content: string;
+    if (out) {
+      content = latin1(out);
+    } else {
+      const raw = latin1(pdf.subarray(start, dataEnd));
+      if (!looksLikeText(raw)) continue;
+      content = raw;
+    }
     if (!content.includes("Tj") && !content.includes("TJ")) continue;
     const rows = positionalRows(content);
     if (rows.trim()) pages.push(rows);
   }
 
   return pages;
+}
+
+// Content streams are ASCII operators and parenthesised strings. Image and
+// font data is not. Sampling the head is enough to tell them apart.
+function looksLikeText(s: string): boolean {
+  const n = Math.min(s.length, 2048);
+  if (n === 0) return false;
+  let printable = 0;
+  for (let i = 0; i < n; i++) {
+    const c = s.charCodeAt(i);
+    if (c === 9 || c === 10 || c === 13 || (c >= 32 && c <= 126)) printable++;
+  }
+  return printable / n > 0.9;
 }
 
 const SYSTEM_PROMPT = `You extract structured data from a school term report PDF produced by a student management system (such as EdAdmin).
