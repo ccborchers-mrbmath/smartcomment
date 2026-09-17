@@ -510,15 +510,16 @@ interface Extraction {
 // function's wall clock — sending the whole form in a single call is what
 // made this time out.
 async function callGemini(userParts: any[], label: string, deadline: number): Promise<Extraction> {
-  // One retry on a rate limit. Running every page group at once (see below)
-  // makes a 429 more likely than it was at three at a time, and failing the
-  // whole upload because one call out of seven was throttled would be worse
-  // than waiting a couple of seconds.
+  // Up to three attempts on a rate limit, backing off between them. Firing a
+  // whole form's worth of calls at once trips Gemini's limit: eleven at once
+  // lost three groups outright and silently dropped six students from a
+  // twenty-one student form. A throttled call is worth waiting for.
   //
   // Every attempt is bounded by the caller's deadline rather than a flat 90s.
   // The gateway hangs up at 150s regardless, so a call that would run past
   // that is already lost — better to give up while there is still time to
   // return the pages that did come back.
+  const BACKOFF = [1500, 4000, 8000];
   for (let attempt = 0; ; attempt++) {
     const budget = Math.min(90_000, deadline - Date.now());
     if (budget < 5_000) throw new Error(`Ran out of time before reading ${label}.`);
@@ -539,9 +540,10 @@ async function callGemini(userParts: any[], label: string, deadline: number): Pr
         },
       );
       if (res.status === 429) {
-        if (attempt === 0 && deadline - Date.now() > 20_000) {
+        const wait = BACKOFF[attempt];
+        if (wait !== undefined && deadline - Date.now() > wait + 15_000) {
           clearTimeout(timer);
-          await new Promise((r) => setTimeout(r, 2000));
+          await new Promise((r) => setTimeout(r, wait));
           continue;
         }
         throw new Error("rate_limited");
@@ -662,12 +664,10 @@ serve(async (req) => {
       // Text-layer path: batch the pages into small calls and run a few at a
       // time. The PDF bytes are not sent — the coordinates carry everything
       // the model needs, and leaving the file out keeps each call fast.
-      // Two pages a call, not four. A 21-page form failed on "Timed out
-      // reading pages 9-12": one group ran past the 90s abort inside
-      // callGemini while neighbouring groups finished in 60-86s, so the whole
-      // upload was sitting a few seconds from the edge. Halving the pages per
-      // call halves the work each one has to do.
-      const GROUP = 2;
+      // Three pages a call. Four ran past the 90s abort on a dense form; two
+      // meant eleven calls for a 21-page form, and eleven at once is what
+      // tripped the rate limit.
+      const GROUP = 3;
       const groups: { from: number; text: string }[] = [];
       for (let i = 0; i < pages.length; i += GROUP) {
         groups.push({
@@ -676,13 +676,12 @@ serve(async (req) => {
         });
       }
 
-      // Run every group at once where we can. A 27-page form is 7 calls, and
-      // three at a time took 162s against a 150s gateway timeout — the browser
-      // got a 504 even though the extraction itself had succeeded 12s later.
-      // Each call takes roughly the same time whether or not others are in
-      // flight, so the wall clock is essentially the number of waves. Capped
-      // so a very large form does not fire off an unbounded burst.
-      const CONCURRENCY = Math.min(12, Math.max(3, groups.length));
+      // Still one wave for any realistic form, but the calls are started a
+      // fraction of a second apart rather than all in the same instant. The
+      // wall clock barely moves — the calls still overlap — and Gemini stops
+      // seeing a burst, which is what cost three groups and six students.
+      const CONCURRENCY = Math.min(8, Math.max(3, groups.length));
+      const STAGGER_MS = 400;
 
       const results: Extraction[] = new Array(groups.length);
       for (let i = 0; i < groups.length; i += CONCURRENCY) {
@@ -691,15 +690,16 @@ serve(async (req) => {
         // entire import down with it, losing twenty pages that had been read
         // perfectly well. A gap in the marksheet the teacher can see and fix
         // beats no marksheet at all.
-        const settled = await Promise.allSettled(wave.map((g) =>
-          callGemini(
+        const settled = await Promise.allSettled(wave.map(async (g, k) => {
+          if (k) await new Promise((r) => setTimeout(r, k * STAGGER_MS));
+          return callGemini(
             [{
               text: `Extract every student page below. Each line is one horizontal row of a page; every cell carries its exact x coordinate. Use those x coordinates to decide which term/column each number belongs to. A row with fewer numbers than the full set means some cells are genuinely blank — return "" for those and never shift a value across.\n\n${g.text}`,
             }],
             `pages ${g.from + 1}-${Math.min(g.from + GROUP, pages.length)}`,
             deadline,
-          ),
-        ));
+          );
+        }));
         settled.forEach((res, k) => {
           const g = wave[k];
           const label = `${g.from + 1}-${Math.min(g.from + GROUP, pages.length)}`;

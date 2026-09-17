@@ -213,7 +213,15 @@ export default function NewClass() {
       setStep(2);
 
       const subjectCount = new Set(students.flatMap((s) => s.subjects.map((x) => x.name))).size;
-      toast.success(`Found ${students.length} students and ${subjectCount} subjects`);
+      // A partial import must never pass for a complete one. Some pages
+      // failing used to show the ordinary success message with a quietly
+      // smaller number, so a teacher could create a class missing six students
+      // without anything having said so.
+      if (data?.partial_error) {
+        toast.warning(`Only ${students.length} students were read. ${data.partial_error}`, { duration: 15000 });
+      } else {
+        toast.success(`Found ${students.length} students and ${subjectCount} subjects`);
+      }
     } catch (e: any) {
       // The function's own message is always the best one — it is the only
       // party that knows whether the PDF had a text layer. Use it whenever
