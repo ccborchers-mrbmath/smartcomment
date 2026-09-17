@@ -12,6 +12,20 @@ const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
+// Gemini 3.1 Pro allows 250 requests a day even on a paid Tier 1 account —
+// a limit of the model, not the billing. At three students a call that is
+// around 750 comments a day, which is normally ample, but a heavy reporting
+// day can reach it and the reset is midnight Pacific.
+//
+// Settable from the Supabase dashboard so the model can be changed mid-season
+// without a deploy: set GEMINI_COMMENT_MODEL to gemini-3-flash-preview to keep
+// working through a day that has hit the ceiling, and clear it again after.
+// The default is deliberately the stronger model — comment wording is the part
+// of this app where quality actually matters, and the prompt's subtler rules
+// (the style bank outranking directives, the impersonal voice, the character
+// ceiling) are exactly what a smaller model follows least reliably.
+const COMMENT_MODEL = Deno.env.get("GEMINI_COMMENT_MODEL") ?? "gemini-3.1-pro-preview";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -490,7 +504,7 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
 
     const callBatch = async (batch: any[]): Promise<{ comments: { student_id: string; text: string }[]; error?: { status: number; message: string } }> => {
       const studentBlocks = batch.map(buildBlock).join("\n\n========\n\n");
-      const doFetch = () => fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent", {
+      const doFetch = () => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${COMMENT_MODEL}:generateContent`, {
         method: "POST",
         headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -545,7 +559,7 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
       await logUsage({
         userId: user.id,
         functionName: "generate-comments",
-        model: "google/gemini-3.1-pro-preview",
+        model: `google/${COMMENT_MODEL}`,
         units: parsed.comments?.length ?? 0,
         usage: geminiUsage(data.usageMetadata),
         metadata: { batch_size: batch.length },
@@ -566,7 +580,7 @@ CRITICAL NAMING RULE (HIGHEST PRIORITY — overrides everything else):
           teacher_id: user.id,
           text: c.text,
           version: nextVersion,
-          model: "google/gemini-3.1-pro-preview",
+          model: `google/${COMMENT_MODEL}`,
         });
       }
       return { comments: parsed.comments ?? [] };
