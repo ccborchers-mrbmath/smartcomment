@@ -342,11 +342,18 @@ serve(async (req) => {
     // file in one vision call. Refuse a big one rather than stalling until the
     // platform kills us — a killed function surfaces in the browser as an
     // opaque CORS error, which is close to undebuggable for the teacher.
+    //
+    // Do NOT tell them to split it. Size is the symptom, not the cause: the
+    // reports that work are ~0.3MB with a text layer, and the ones that land
+    // here are 2-4MB with none, which is what a scan or an image export looks
+    // like. Splitting a scan in half just produces two scans.
     const MAX_VISION_BYTES = 1_500_000;
     if (pages.length === 0 && pdfBytes.length > MAX_VISION_BYTES) {
       return new Response(
         JSON.stringify({
-          error: `That PDF has no readable text layer and is too large (${Math.round(pdfBytes.length / 1024)}KB) to read as images in one pass. Split it into smaller files and import them one at a time.`,
+          error: `This PDF has no text in it — it looks like a scan or an image export (${(pdfBytes.length / 1048576).toFixed(1)}MB), and at that size it cannot be read as pictures in one pass. Download the report straight from your school's system as a PDF rather than scanning or printing it to image, and upload that. A text PDF of a whole form is usually well under 1MB.`,
+          stage: "no_text_layer",
+          pdf_bytes: pdfBytes.length,
         }),
         { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
