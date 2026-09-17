@@ -162,6 +162,20 @@ export default function NewClass() {
     else handleFile(file);
   };
 
+  // Reads the JSON error an edge function returned with a non-2xx status.
+  // supabase-js hands back the raw Response on error.context without reading
+  // it, so without this the teacher only ever sees the status code.
+  const serverMessage = async (error: any): Promise<string | null> => {
+    try {
+      const res = error?.context;
+      if (!res || typeof res.clone !== "function") return null;
+      const body = await res.clone().json();
+      return typeof body?.error === "string" ? body.error : null;
+    } catch {
+      return null;
+    }
+  };
+
   // Registration classes only: pull the whole form's marksheet out of a school
   // MIS term report (one page per student).
   const handleReportPdf = async (file: File) => {
@@ -171,7 +185,16 @@ export default function NewClass() {
         body: { fileBase64: await fileToBase64(file), mimeType: file.type || "application/pdf" },
       });
       if (handleInsufficientCredits({ data, error }, openBuyCredits)) return;
-      if (error) throw error;
+      // On a non-2xx, supabase-js puts the status in error.context and leaves
+      // the body unread, so the function's own explanation never reaches the
+      // teacher unless we go and get it. That explanation is the useful one —
+      // it knows whether the PDF had a text layer, which the status does not.
+      if (error) {
+        // Keep the status on the error so the fallbacks below can still tell a
+        // rejected upload from a timed-out one when the body says nothing.
+        (error as any).serverMessage = await serverMessage(error);
+        throw error;
+      }
       if (data?.error) throw new Error(data.error);
 
       const students: StudentReport[] = data?.students ?? [];
@@ -192,16 +215,19 @@ export default function NewClass() {
       const subjectCount = new Set(students.flatMap((s) => s.subjects.map((x) => x.name))).size;
       toast.success(`Found ${students.length} students and ${subjectCount} subjects`);
     } catch (e: any) {
-      // supabase-js reports a timed-out or crashed function as a send failure,
-      // which tells the teacher nothing useful on its own. Where the platform
-      // answered with a status of its own, say what it actually was — "too
-      // large" and "took too long" need different things from the teacher, and
-      // both used to arrive as the same unhelpful sentence.
+      // The function's own message is always the best one — it is the only
+      // party that knows whether the PDF had a text layer. Use it whenever
+      // there is one, and fall back on the status only when there is not.
+      // supabase-js reports a timed-out or crashed function as a bare send
+      // failure, which tells the teacher nothing on its own.
+      const fromServer = String(e?.serverMessage ?? "");
       const raw = String(e?.message ?? "");
       const status = e?.context?.status;
       const mb = (file.size / 1048576).toFixed(1);
       toast.error(
-        status === 413
+        fromServer
+          ? fromServer
+          : status === 413
           ? `That PDF is too large to upload (${mb}MB). Split it into two smaller PDFs and import them one after the other — the marksheets will merge.`
           : status === 504
           ? "The report took too long to read and the upload timed out. Try splitting it into two smaller PDFs."
