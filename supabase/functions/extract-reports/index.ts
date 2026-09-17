@@ -547,6 +547,18 @@ async function callGemini(userParts: any[], label: string, deadline: number): Pr
       );
       if (res.status === 429) {
         const wait = BACKOFF[attempt];
+        // Google names the quota it refused on. Without this the logs only ever
+        // said "rate_limited", and that missing detail is why this was chased
+        // for hours as a burst problem when the real answer was a daily cap:
+        //   generate_requests_per_model_per_day, limit: 250
+        const detail = await res.text().catch(() => "");
+        console.error(`extract-reports ${label}: 429 ${detail.slice(0, 400)}`);
+        // A per-day quota will not clear in eight seconds. Retrying it three
+        // times for every group spent a minute rediscovering what the first
+        // response already said, so stop the whole run at the first one.
+        if (/per_day|requests_per_model_per_day|PerDay/i.test(detail)) {
+          throw new Error("daily_quota");
+        }
         if (wait !== undefined && deadline - Date.now() > wait + 15_000) {
           clearTimeout(timer);
           await new Promise((r) => setTimeout(r, wait));
@@ -611,8 +623,9 @@ async function runExtraction(
       const CONCURRENCY = 2;
       const results: Extraction[] = new Array(groups.length);
       let done = 0;
+      let dailyQuota = false;
 
-      for (let i = 0; i < groups.length; i += CONCURRENCY) {
+      for (let i = 0; i < groups.length && !dailyQuota; i += CONCURRENCY) {
         const wave = groups.slice(i, i + CONCURRENCY);
         const settled = await Promise.allSettled(wave.map((g) =>
           callGemini(
@@ -628,12 +641,24 @@ async function runExtraction(
           const label = `${g.from + 1}-${Math.min(g.from + GROUP, pages.length)}`;
           if (res.status === "fulfilled") results[i + k] = res.value;
           else {
+            const msg = res.reason?.message ?? String(res.reason);
+            // The day's AI budget is gone; the remaining groups would all fail
+            // the same way. Stop and say so, rather than grinding through them.
+            if (msg === "daily_quota") dailyQuota = true;
             failedPages.push(label);
-            console.error(`extract-reports: group pages ${label} failed:`, res.reason?.message ?? res.reason);
+            console.error(`extract-reports: group pages ${label} failed:`, msg);
           }
           done += Math.min(GROUP, pages.length - g.from);
         });
         await patch({ done_pages: done });
+      }
+
+      if (dailyQuota) {
+        await patch({
+          status: "failed",
+          error: "The daily AI limit for this account has been reached, so the report could not be read. Nothing has been imported. The limit resets each day — or raise it by enabling billing on the Google AI API key.",
+        });
+        return;
       }
 
       for (const r of results) {
