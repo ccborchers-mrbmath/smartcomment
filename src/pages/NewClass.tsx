@@ -69,6 +69,9 @@ export default function NewClass() {
   const { openBuyCredits } = useBuyCredits();
   const [step, setStep] = useState<1 | 2>(1);
   const [busy, setBusy] = useState(false);
+  // Reading a form takes a few minutes now that it runs in the background, so
+  // the teacher gets pages-done rather than an unexplained spinner.
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
   const [name, setName] = useState("");
   const [yearGrade, setYearGrade] = useState("");
   const [subject, setSubject] = useState("");
@@ -178,8 +181,38 @@ export default function NewClass() {
 
   // Registration classes only: pull the whole form's marksheet out of a school
   // MIS term report (one page per student).
+  //
+  // The upload no longer waits for the extraction. The function parses the PDF,
+  // starts a background job and hands back an id; we watch that row until it
+  // finishes. Reading a whole form takes several minutes on purpose — slowly
+  // enough to stay under the AI provider's per-minute quota, which is what was
+  // silently dropping students when it all had to happen inside one request.
+  const pollImport = async (jobId: string, totalPages: number): Promise<any> => {
+    const startedAt = Date.now();
+    const GIVE_UP_AFTER = 8 * 60 * 1000;
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 2500));
+      const { data: job, error } = await supabase
+        .from("report_imports")
+        .select("status, done_pages, total_pages, result, error")
+        .eq("id", jobId)
+        .maybeSingle();
+      if (error) throw new Error(`Lost track of the import: ${error.message}`);
+      if (!job) throw new Error("The import could not be found.");
+
+      if (job.status === "failed") throw new Error(String(job.error || "The import failed."));
+      if (job.status === "done") return job.result;
+
+      setImportProgress({ done: Number(job.done_pages ?? 0), total: Number(job.total_pages ?? totalPages) });
+      if (Date.now() - startedAt > GIVE_UP_AFTER) {
+        throw new Error("The import is taking longer than expected. Nothing has been created — please try again.");
+      }
+    }
+  };
+
   const handleReportPdf = async (file: File) => {
     setBusy(true);
+    setImportProgress({ done: 0, total: 0 });
     try {
       const { data, error } = await supabase.functions.invoke("extract-reports", {
         body: { fileBase64: await fileToBase64(file), mimeType: file.type || "application/pdf" },
@@ -196,38 +229,35 @@ export default function NewClass() {
         throw error;
       }
       if (data?.error) throw new Error(data.error);
+      if (!data?.job_id) throw new Error("The import did not start. Please try again.");
 
-      const students: StudentReport[] = data?.students ?? [];
+      setImportProgress({ done: 0, total: Number(data.total_pages ?? 0) });
+      // Throws on failure, so a run that could not read every page never
+      // reaches the roster: all or nothing, by design.
+      const result = await pollImport(String(data.job_id), Number(data.total_pages ?? 0));
+
+      const students: StudentReport[] = result?.students ?? [];
       if (students.length === 0) {
         toast.error("No student reports found in that PDF.");
         return;
       }
-      if (!data?.positional_layer) {
+      if (!result?.positional_layer) {
         toast.warning("That PDF had no readable text layer, so marks were read from the page image. Check the marksheet carefully after creating.");
       }
-      setReportYear(String(data?.year ?? ""));
+      setReportYear(String(result?.year ?? ""));
       setNames((p) => [...p, ...students.map((s) => s.name)]);
       setGenders((p) => [...p, ...students.map(() => null)]);
       setReports((p) => [...p, ...students]);
-      if (!name.trim() && data?.form) setName(String(data.form));
+      if (!name.trim() && result?.form) setName(String(result.form));
       setStep(2);
 
       const subjectCount = new Set(students.flatMap((s) => s.subjects.map((x) => x.name))).size;
-      // A partial import must never pass for a complete one. Some pages
-      // failing used to show the ordinary success message with a quietly
-      // smaller number, so a teacher could create a class missing six students
-      // without anything having said so.
-      if (data?.partial_error) {
-        toast.warning(`Only ${students.length} students were read. ${data.partial_error}`, { duration: 15000 });
-      } else {
-        toast.success(`Found ${students.length} students and ${subjectCount} subjects`);
-      }
+      toast.success(`Found ${students.length} students and ${subjectCount} subjects`);
     } catch (e: any) {
       // The function's own message is always the best one — it is the only
-      // party that knows whether the PDF had a text layer. Use it whenever
-      // there is one, and fall back on the status only when there is not.
-      // supabase-js reports a timed-out or crashed function as a bare send
-      // failure, which tells the teacher nothing on its own.
+      // party that knows whether the PDF had a text layer, or which pages a
+      // background run could not read. Use it whenever there is one, and fall
+      // back on the status only when there is not.
       const fromServer = String(e?.serverMessage ?? "");
       const raw = String(e?.message ?? "");
       const status = e?.context?.status;
@@ -236,15 +266,14 @@ export default function NewClass() {
         fromServer
           ? fromServer
           : status === 413
-          ? `That PDF is too large to upload (${mb}MB). Split it into two smaller PDFs and import them one after the other — the marksheets will merge.`
-          : status === 504
-          ? "The report took too long to read and the upload timed out. Try splitting it into two smaller PDFs."
+          ? `That PDF is too large to upload (${mb}MB). Ask your school's system for the report again — a text PDF of a whole form is usually well under 1MB.`
           : /failed to send|fetch/i.test(raw)
-          ? `The report couldn't be processed — it may be too large (${mb}MB). Try splitting it into two smaller PDFs.`
+          ? `The report couldn't be uploaded (${mb}MB). Check your connection and try again.`
           : raw || "Could not read that report",
       );
     } finally {
       setBusy(false);
+      setImportProgress(null);
     }
   };
 
@@ -529,13 +558,18 @@ export default function NewClass() {
                     <Button type="button" variant="default" size="sm" disabled={busy} asChild>
                       <span>
                         {busy ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />}
-                        {busy ? "Reading report…" : "Upload report PDF"}
+                        {busy
+                          ? importProgress && importProgress.total
+                            ? `Reading ${importProgress.done} of ${importProgress.total} pages…`
+                            : "Reading report…"
+                          : "Upload report PDF"}
                       </span>
                     </Button>
                     {busy && (
                       <p className="text-xs text-muted-foreground mt-2">
-                        A full form takes up to a minute. Please stay on this page — you'll
-                        review the students and marks before anything is created.
+                        A full form takes a few minutes — the pages are read a couple at a
+                        time so none get dropped. Please stay on this page; you'll review
+                        the students and marks before anything is created.
                       </p>
                     )}
                     <input
