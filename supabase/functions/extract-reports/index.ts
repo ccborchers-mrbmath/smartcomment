@@ -39,6 +39,77 @@ async function inflate(bytes: Uint8Array): Promise<Uint8Array | null> {
   return null;
 }
 
+// A font's /ToUnicode CMap: the byte codes in the content stream mean nothing
+// on their own, and for a subset font they are usually not ASCII at all. One
+// real report encoded every letter two codes high, so "PLEASE CHECK" sat in
+// the file as "2NGCUG EJGEM" — extracted confidently, and completely wrong.
+type FontMap = { map: Map<number, string>; bytes: 1 | 2 };
+
+function parseCMap(text: string): FontMap {
+  const map = new Map<number, string>();
+  let bytes: 1 | 2 = 1;
+  const hexPair = (h: string) => {
+    let out = "";
+    for (let i = 0; i + 3 < h.length + 1; i += 4) {
+      const code = parseInt(h.slice(i, i + 4), 16);
+      if (Number.isFinite(code)) out += String.fromCharCode(code);
+    }
+    return out;
+  };
+  for (const blk of text.match(/beginbfchar[\s\S]*?endbfchar/g) ?? []) {
+    for (const m of blk.matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
+      if (m[1].length > 2) bytes = 2;
+      map.set(parseInt(m[1], 16), hexPair(m[2]));
+    }
+  }
+  for (const blk of text.match(/beginbfrange[\s\S]*?endbfrange/g) ?? []) {
+    for (const m of blk.matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
+      if (m[1].length > 2) bytes = 2;
+      const lo = parseInt(m[1], 16), hi = parseInt(m[2], 16), base = parseInt(m[3], 16);
+      if (hi - lo > 65535) continue;
+      for (let k = lo; k <= hi; k++) map.set(k, String.fromCharCode(base + (k - lo)));
+    }
+  }
+  return { map, bytes };
+}
+
+// Resource name (/F5) -> that font's CMap, gathered across the whole document.
+async function buildFontMaps(pdf: Uint8Array, s: string): Promise<Map<string, FontMap>> {
+  const fonts = new Map<string, FontMap>();
+  const offsets = new Map<number, number>();
+  for (const m of s.matchAll(/(\d+)\s+0\s+obj/g)) offsets.set(Number(m[1]), m.index! + m[0].length);
+
+  const streamOf = async (num: number): Promise<string | null> => {
+    const at = offsets.get(num);
+    if (at === undefined) return null;
+    const st = s.indexOf("stream", at);
+    if (st < 0) return null;
+    let p = st + "stream".length;
+    if (s[p] === "\r") p++;
+    if (s[p] === "\n") p++;
+    const e = s.indexOf("endstream", p);
+    if (e < 0) return null;
+    let de = e;
+    while (de > p && (pdf[de - 1] === 0x0a || pdf[de - 1] === 0x0d || pdf[de - 1] === 0x20 || pdf[de - 1] === 0x09)) de--;
+    const out = await inflate(pdf.subarray(p, de));
+    return out ? latin1(out) : latin1(pdf.subarray(p, de));
+  };
+
+  for (const fd of s.matchAll(/\/Font\s*<<([\s\S]{0,2000}?)>>/g)) {
+    for (const ref of fd[1].matchAll(/\/(\w+)\s+(\d+)\s+0\s+R/g)) {
+      const name = ref[1];
+      if (fonts.has(name)) continue;
+      const at = offsets.get(Number(ref[2]));
+      if (at === undefined) continue;
+      const tu = s.slice(at, at + 1200).match(/\/ToUnicode\s+(\d+)\s+0\s+R/);
+      if (!tu) continue;
+      const cmap = await streamOf(Number(tu[1]));
+      if (cmap) fonts.set(name, parseCMap(cmap));
+    }
+  }
+  return fonts;
+}
+
 // Turn one content stream into rows of positioned text:
 //   y=627 | x=34 "First Language English" | x=265 "80" | x=319 "71" | …
 //
@@ -48,14 +119,15 @@ async function inflate(bytes: Uint8Array): Promise<Uint8Array | null> {
 // writers emit "BT /F1 9 Tf 1 0 0 1 34 627 Tm (English) Tj ET" as one line, or
 // use hex strings, and against those it found nothing whatsoever — reported
 // upstream as "this PDF has no text in it", which was simply untrue.
-function positionalRows(content: string): string {
-  type Item = { y: number; x: number; t: string };
+function positionalRows(content: string, fonts: Map<string, FontMap>): string {
+  type Item = { y: number; x: number; t: string; size: number };
   const items: Item[] = [];
 
   // Text state. We only need where each show operation starts, so glyph widths
   // are not tracked — the line matrix translation is enough.
-  let lx = 0, ly = 0, leading = 0;
+  let lx = 0, ly = 0, leading = 0, size = 10, font: string | null = null;
   const operands: any[] = [];
+  let lastName: string | null = null;
   let i = 0;
 
   const isDelim = (c: string) => c === "(" || c === ")" || c === "<" || c === ">" ||
@@ -106,9 +178,26 @@ function positionalRows(content: string): string {
     return out;
   };
 
+  // Map raw codes through the active font. Without a CMap the bytes are taken
+  // at face value, which is right for the ordinary case where they are ASCII.
+  const decode = (raw: string): string => {
+    const fm = font ? fonts.get(font) : undefined;
+    if (!fm || fm.map.size === 0) return raw;
+    let out = "";
+    if (fm.bytes === 2) {
+      for (let k = 0; k + 1 < raw.length; k += 2) {
+        const code = (raw.charCodeAt(k) << 8) | raw.charCodeAt(k + 1);
+        out += fm.map.get(code) ?? " ";
+      }
+    } else {
+      for (let k = 0; k < raw.length; k++) out += fm.map.get(raw.charCodeAt(k)) ?? " ";
+    }
+    return out;
+  };
+
   // Identity-H and similar encodings put glyph ids in the string, not
-  // characters. Those decode to control bytes, and emitting them would fill
-  // the marksheet with rubbish — worse than reporting no text at all.
+  // characters. Where no CMap resolves them, those decode to control bytes,
+  // and emitting them would fill the marksheet with rubbish.
   const readable = (s: string) => {
     if (!s) return false;
     let ok = 0;
@@ -119,9 +208,12 @@ function positionalRows(content: string): string {
     return ok / s.length > 0.8;
   };
 
-  const show = (s: string) => {
-    if (s.trim() && readable(s)) {
-      items.push({ y: Math.round(ly * 10) / 10, x: Math.round(lx * 10) / 10, t: s });
+  const show = (raw: string) => {
+    const t = decode(raw);
+    // Spaces are kept: a PDF that draws one glyph per operation relies on them
+    // to separate words once the run is reassembled below.
+    if (t && readable(t)) {
+      items.push({ y: Math.round(ly * 10) / 10, x: Math.round(lx * 10) / 10, t, size });
     }
   };
 
@@ -148,7 +240,9 @@ function positionalRows(content: string): string {
     }
     if (c === "/") {
       i++;
-      while (i < content.length && !isSpace(content[i]) && !isDelim(content[i])) i++;
+      let nm = "";
+      while (i < content.length && !isSpace(content[i]) && !isDelim(content[i])) nm += content[i++];
+      lastName = nm;
       operands.push(null);   // a name is never text we want
       continue;
     }
@@ -166,6 +260,12 @@ function positionalRows(content: string): string {
 
     switch (tok) {
       case "BT": lx = 0; ly = 0; break;
+      case "Tf": {
+        font = lastName;
+        const sz = num(operands[operands.length - 1]);
+        if (sz) size = Math.abs(sz);
+        break;
+      }
       case "Tm": {
         const f = num(operands[operands.length - 1]);
         const e = num(operands[operands.length - 2]);
@@ -210,8 +310,29 @@ function positionalRows(content: string): string {
     .sort((a, b) => b - a) // PDF origin is bottom-left, so descending y reads top-down
     .map((yy) => {
       const cells = (byRow.get(yy) ?? []).sort((a, b) => a.x - b.x);
-      return `y=${yy} | ` + cells.map((c) => `x=${Math.round(c.x)} "${c.t}"`).join(" | ");
+      // Some writers draw one glyph per operation, so a row arrives as a
+      // hundred single letters. Rejoin neighbours into runs, and keep the
+      // break where the gap is wide enough to be a real column — measured on
+      // a live report, letters sat under 1.6x the font size apart while
+      // columns were never closer than 3x. The gap is measured against the
+      // previous glyph, not the start of the run: against the start it grows
+      // with the run and chops every word into five-letter pieces.
+      const runs: { x: number; lastX: number; t: string }[] = [];
+      for (const cell of cells) {
+        const prev = runs[runs.length - 1];
+        const gap = prev ? cell.x - prev.lastX : Infinity;
+        if (prev && gap <= Math.max(2 * cell.size, 4)) {
+          prev.t += cell.t;
+          prev.lastX = cell.x;
+        } else {
+          runs.push({ x: cell.x, lastX: cell.x, t: cell.t });
+        }
+      }
+      const kept = runs.map((r) => ({ x: r.x, t: r.t.trim() })).filter((r) => r.t);
+      if (!kept.length) return "";
+      return `y=${yy} | ` + kept.map((r) => `x=${Math.round(r.x)} "${r.t}"`).join(" | ");
     })
+    .filter((l) => l)
     .join("\n");
 }
 
@@ -233,6 +354,7 @@ function latin1(bytes: Uint8Array): string {
 // understand — the model then falls back to reading the PDF visually.
 async function positionalPages(pdf: Uint8Array): Promise<string[]> {
   const s = latin1(pdf);
+  const fonts = await buildFontMaps(pdf, s);
 
   const pages: string[] = [];
   let idx = 0;
@@ -270,7 +392,7 @@ async function positionalPages(pdf: Uint8Array): Promise<string[]> {
       content = raw;
     }
     if (!content.includes("Tj") && !content.includes("TJ")) continue;
-    const rows = positionalRows(content);
+    const rows = positionalRows(content, fonts);
     if (rows.trim()) pages.push(rows);
   }
 
