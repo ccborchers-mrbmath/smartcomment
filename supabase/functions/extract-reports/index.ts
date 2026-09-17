@@ -26,6 +26,12 @@ const corsHeaders = {
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+// Needed here as well as in the shared logger: the background task writes the
+// job row after the request's auth context is gone.
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+// Supplied by the Supabase edge runtime; not in the ambient Deno types.
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
 
 async function inflate(bytes: Uint8Array): Promise<Uint8Array | null> {
   for (const format of ["deflate", "deflate-raw"] as const) {
@@ -567,11 +573,136 @@ async function callGemini(userParts: any[], label: string, deadline: number): Pr
   }
 }
 
+// The extraction itself, run as a background task rather than inside the
+// request. Groups go out two at a time over several minutes: comfortably
+// under Gemini's per-minute quota, which is what was rejecting calls when a
+// whole form went out at once, and nowhere near any timeout.
+async function runExtraction(
+  jobId: string,
+  userId: string,
+  pages: string[],
+  fileBase64: string,
+  mimeType: string | undefined,
+  deadline: number,
+) {
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const patch = (fields: Record<string, unknown>) =>
+    admin.from("report_imports").update({ ...fields, updated_at: new Date().toISOString() }).eq("id", jobId);
+
+  const t0 = Date.now();
+  try {
+    let year = "", form = "", terms: string[] = [], students: any[] = [];
+    const usages: any[] = [];
+    const failedPages: string[] = [];
+
+    if (pages.length > 0) {
+      const GROUP = 3;
+      const groups: { from: number; text: string }[] = [];
+      for (let i = 0; i < pages.length; i += GROUP) {
+        groups.push({
+          from: i,
+          text: pages.slice(i, i + GROUP).map((p, j) => `--- PAGE ${i + j + 1} ---\n${p}`).join("\n\n"),
+        });
+      }
+
+      // Two at a time. Seven calls spread over roughly three minutes is about
+      // two requests a minute, which passes a tight quota; eleven at once did
+      // not, and no amount of backing off inside the same minute fixed it.
+      const CONCURRENCY = 2;
+      const results: Extraction[] = new Array(groups.length);
+      let done = 0;
+
+      for (let i = 0; i < groups.length; i += CONCURRENCY) {
+        const wave = groups.slice(i, i + CONCURRENCY);
+        const settled = await Promise.allSettled(wave.map((g) =>
+          callGemini(
+            [{
+              text: `Extract every student page below. Each line is one horizontal row of a page; every cell carries its exact x coordinate. Use those x coordinates to decide which term/column each number belongs to. A row with fewer numbers than the full set means some cells are genuinely blank — return "" for those and never shift a value across.\n\n${g.text}`,
+            }],
+            `pages ${g.from + 1}-${Math.min(g.from + GROUP, pages.length)}`,
+            deadline,
+          ),
+        ));
+        settled.forEach((res, k) => {
+          const g = wave[k];
+          const label = `${g.from + 1}-${Math.min(g.from + GROUP, pages.length)}`;
+          if (res.status === "fulfilled") results[i + k] = res.value;
+          else {
+            failedPages.push(label);
+            console.error(`extract-reports: group pages ${label} failed:`, res.reason?.message ?? res.reason);
+          }
+          done += Math.min(GROUP, pages.length - g.from);
+        });
+        await patch({ done_pages: done });
+      }
+
+      for (const r of results) {
+        if (!r) continue;
+        if (!year && r.year) year = r.year;
+        if (!form && r.form) form = r.form;
+        if (!terms.length && r.terms?.length) terms = r.terms;
+        if (r.students?.length) students.push(...r.students);
+        if ((r as any).__usage) usages.push((r as any).__usage);
+      }
+    } else {
+      const r = await callGemini(
+        [
+          { text: "Extract every student page from this term report. Align each number to its column by its position on the page, and return \"\" for any cell that is blank." },
+          { inline_data: { mime_type: mimeType ?? "application/pdf", data: fileBase64 } },
+        ],
+        "whole document",
+        deadline,
+      );
+      year = r.year ?? ""; form = r.form ?? ""; terms = r.terms ?? []; students = r.students ?? [];
+      if ((r as any).__usage) usages.push((r as any).__usage);
+    }
+
+    console.log(`extract-reports: ${students.length} students in ${Date.now() - t0}ms`);
+
+    // Usage is logged for whatever was actually spent, including on a run that
+    // ends up failing — those calls were still made and still cost money.
+    await logUsage({
+      userId,
+      functionName: "extract-reports",
+      model: "google/gemini-3.1-pro-preview",
+      units: students.length,
+      usage: {
+        prompt_tokens: usages.reduce((s, u) => s + (u?.promptTokenCount ?? 0), 0),
+        completion_tokens: usages.reduce((s, u) => s + (u?.candidatesTokenCount ?? 0), 0),
+      },
+      metadata: { students: students.length, pages: pages.length, calls: usages.length, positional_layer: pages.length > 0, failed: failedPages.length },
+    });
+
+    // All or nothing. A class built from a marksheet quietly missing nine
+    // children is worse than an import the teacher has to run again, and the
+    // comments generated from it would be wrong in a way nobody would catch.
+    if (failedPages.length) {
+      await patch({
+        status: "failed",
+        error: `Could not read pages ${failedPages.join(", ")} of ${pages.length}. Nothing has been imported — please try again.`,
+      });
+      return;
+    }
+    if (!students.length) {
+      await patch({ status: "failed", error: "No student reports were found in that PDF." });
+      return;
+    }
+
+    await patch({
+      status: "done",
+      done_pages: pages.length,
+      result: { year, form, terms, students, positional_layer: pages.length > 0 },
+    });
+  } catch (e) {
+    console.error("extract-reports: job failed", e);
+    await patch({ status: "failed", error: e instanceof Error ? e.message : "Extraction failed" });
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   // Reported back on failure so a browser-side error says how far it got.
   let stage = "start";
-  let pageCount = 0;
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -593,23 +724,19 @@ serve(async (req) => {
     }
 
     const t0 = Date.now();
-    // The gateway gives up on a request after 150s. Everything downstream is
-    // bounded against this so the function returns what it has rather than
-    // being cut off mid-flight, which reaches the browser as an opaque error.
-    const deadline = t0 + 135_000;
+    // A Pro project keeps a worker alive for 400s, against the 150s a request
+    // gets. Parsing happens here — it takes under a second — and the Gemini
+    // calls happen after the response has gone, where that budget applies.
+    const deadline = t0 + 380_000;
     stage = "decode_base64";
     const pdfBytes = Uint8Array.from(atob(fileBase64), (c) => c.charCodeAt(0));
-    // Logged so a rejected upload can be sized after the fact. The gateway
-    // enforces its own body limit ahead of this function and answers 413 on
-    // its own, so a request that never gets here leaves no other trace of how
-    // big it was.
     console.log(`extract-reports: received ${(pdfBytes.length / 1048576).toFixed(2)}MB PDF (${(fileBase64.length / 1048576).toFixed(2)}MB as base64)`);
+
     let pages: string[] = [];
     let layerError: string | null = null;
     stage = "parse_text_layer";
     try {
       pages = await positionalPages(pdfBytes);
-      pageCount = pages.length;
     } catch (e) {
       // Do NOT quietly drop to the vision path here. That path sends the whole
       // PDF in one call, which is the slow shape this function was rewritten to
@@ -619,155 +746,60 @@ serve(async (req) => {
     }
     console.log(`extract-reports: ${pages.length} text-layer pages in ${Date.now() - t0}ms${layerError ? ` (layer error: ${layerError})` : ""}`);
 
-    // A thrown parse error is a bug, not a scanned PDF. Falling through to the
-    // vision path would hide it behind the same slow single call this function
-    // was rewritten to avoid, so report it instead — including in the response,
-    // because the edge logs are not always reachable.
     if (layerError) {
       return new Response(
-        JSON.stringify({
-          error: `Could not read the PDF's text layer: ${layerError}`,
-          stage: "positional_text_layer",
-          pdf_bytes: pdfBytes.length,
-        }),
+        JSON.stringify({ error: `Could not read the PDF's text layer: ${layerError}`, stage: "positional_text_layer" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // A genuinely scanned PDF (no text layer, no error) still needs the whole
-    // file in one vision call. Refuse a big one rather than stalling until the
-    // platform kills us — a killed function surfaces in the browser as an
-    // opaque CORS error, which is close to undebuggable for the teacher.
+    // A genuinely scanned PDF needs the whole file in one vision call. Refuse a
+    // big one up front rather than starting a job that cannot finish.
     //
     // Do NOT tell them to split it. Size is the symptom, not the cause: the
-    // reports that work are ~0.3MB with a text layer, and the ones that land
-    // here are 2-4MB with none, which is what a scan or an image export looks
-    // like. Splitting a scan in half just produces two scans.
+    // reports that work carry a text layer and the ones that land here do not,
+    // which is what a scan or an image export looks like. Splitting a scan in
+    // half just produces two scans.
     const MAX_VISION_BYTES = 1_500_000;
     if (pages.length === 0 && pdfBytes.length > MAX_VISION_BYTES) {
       return new Response(
         JSON.stringify({
           error: `This PDF has no text in it — it looks like a scan or an image export (${(pdfBytes.length / 1048576).toFixed(1)}MB), and at that size it cannot be read as pictures in one pass. Download the report straight from your school's system as a PDF rather than scanning or printing it to image, and upload that. A text PDF of a whole form is usually well under 1MB.`,
           stage: "no_text_layer",
-          pdf_bytes: pdfBytes.length,
         }),
         { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    let year = "", form = "", terms: string[] = [], students: any[] = [];
-    const usages: any[] = [];
-    const failedPages: string[] = [];
-
-    stage = pages.length > 0 ? "gemini_batched" : "gemini_vision";
-    if (pages.length > 0) {
-      // Text-layer path: batch the pages into small calls and run a few at a
-      // time. The PDF bytes are not sent — the coordinates carry everything
-      // the model needs, and leaving the file out keeps each call fast.
-      // Three pages a call. Four ran past the 90s abort on a dense form; two
-      // meant eleven calls for a 21-page form, and eleven at once is what
-      // tripped the rate limit.
-      const GROUP = 3;
-      const groups: { from: number; text: string }[] = [];
-      for (let i = 0; i < pages.length; i += GROUP) {
-        groups.push({
-          from: i,
-          text: pages.slice(i, i + GROUP).map((p, j) => `--- PAGE ${i + j + 1} ---\n${p}`).join("\n\n"),
-        });
-      }
-
-      // Still one wave for any realistic form, but the calls are started a
-      // fraction of a second apart rather than all in the same instant. The
-      // wall clock barely moves — the calls still overlap — and Gemini stops
-      // seeing a burst, which is what cost three groups and six students.
-      const CONCURRENCY = Math.min(8, Math.max(3, groups.length));
-      const STAGGER_MS = 400;
-
-      const results: Extraction[] = new Array(groups.length);
-      for (let i = 0; i < groups.length; i += CONCURRENCY) {
-        const wave = groups.slice(i, i + CONCURRENCY);
-        // allSettled, not all: one slow group used to reject and take the
-        // entire import down with it, losing twenty pages that had been read
-        // perfectly well. A gap in the marksheet the teacher can see and fix
-        // beats no marksheet at all.
-        const settled = await Promise.allSettled(wave.map(async (g, k) => {
-          if (k) await new Promise((r) => setTimeout(r, k * STAGGER_MS));
-          return callGemini(
-            [{
-              text: `Extract every student page below. Each line is one horizontal row of a page; every cell carries its exact x coordinate. Use those x coordinates to decide which term/column each number belongs to. A row with fewer numbers than the full set means some cells are genuinely blank — return "" for those and never shift a value across.\n\n${g.text}`,
-            }],
-            `pages ${g.from + 1}-${Math.min(g.from + GROUP, pages.length)}`,
-            deadline,
-          );
-        }));
-        settled.forEach((res, k) => {
-          const g = wave[k];
-          const label = `${g.from + 1}-${Math.min(g.from + GROUP, pages.length)}`;
-          if (res.status === "fulfilled") results[i + k] = res.value;
-          else {
-            failedPages.push(label);
-            console.error(`extract-reports: group pages ${label} failed:`, res.reason?.message ?? res.reason);
-          }
-        });
-      }
-
-      for (const r of results) {
-        if (!r) continue;
-        if (!year && r.year) year = r.year;
-        if (!form && r.form) form = r.form;
-        if (!terms.length && r.terms?.length) terms = r.terms;
-        if (r.students?.length) students.push(...r.students);
-        if ((r as any).__usage) usages.push((r as any).__usage);
-      }
-    } else {
-      // Scanned or unparseable PDF: one vision pass over the whole file.
-      const r = await callGemini(
-        [
-          { text: "Extract every student page from this term report. Align each number to its column by its position on the page, and return \"\" for any cell that is blank." },
-          { inline_data: { mime_type: mimeType ?? "application/pdf", data: fileBase64 } },
-        ],
-        "whole document",
-        deadline,
+    stage = "create_job";
+    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+    const { data: job, error: jobError } = await admin
+      .from("report_imports")
+      .insert({ teacher_id: user.id, status: "running", total_pages: pages.length, done_pages: 0 })
+      .select("id")
+      .single();
+    if (jobError || !job) {
+      return new Response(
+        JSON.stringify({ error: `Could not start the import: ${jobError?.message ?? "unknown"}` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
-      year = r.year ?? ""; form = r.form ?? ""; terms = r.terms ?? []; students = r.students ?? [];
-      if ((r as any).__usage) usages.push((r as any).__usage);
     }
 
-    console.log(`extract-reports: ${students.length} students in ${Date.now() - t0}ms`);
-
-    await logUsage({
-      userId: user.id,
-      functionName: "extract-reports",
-      model: "google/gemini-3.1-pro-preview",
-      units: students.length,
-      usage: {
-        prompt_tokens: usages.reduce((s, u) => s + (u?.promptTokenCount ?? 0), 0),
-        completion_tokens: usages.reduce((s, u) => s + (u?.candidatesTokenCount ?? 0), 0),
-      },
-      metadata: { students: students.length, pages: pages.length, calls: usages.length, positional_layer: pages.length > 0 },
-    });
+    // Hand the work to the worker and answer straight away. waitUntil keeps the
+    // isolate alive until this settles, which is the whole point: the browser
+    // is no longer holding a connection open while Gemini works.
+    EdgeRuntime.waitUntil(runExtraction(job.id, user.id, pages, fileBase64, mimeType, deadline));
 
     return new Response(
-      JSON.stringify({
-        year, form, terms, students,
-        positional_layer: pages.length > 0,
-        // Named so the teacher knows which students to check rather than
-        // discovering a hole in the marksheet later.
-        ...(failedPages.length ? { partial_error: `Pages ${failedPages.join(", ")} could not be read, so some students may be missing. Check the marksheet, and re-import if needed.` } : {}),
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      JSON.stringify({ job_id: job.id, total_pages: pages.length, positional_layer: pages.length > 0 }),
+      { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
     console.error(e);
     const msg = e instanceof Error ? e.message : "unknown";
-    const status = msg === "rate_limited" ? 429 : 500;
     return new Response(
-      JSON.stringify({
-        error: msg === "rate_limited" ? "Rate limit reached. Try again shortly." : msg,
-        stage: stage,
-        pages: pageCount,
-      }),
-      { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      JSON.stringify({ error: msg, stage }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
