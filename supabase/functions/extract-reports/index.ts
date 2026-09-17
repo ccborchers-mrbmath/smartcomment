@@ -41,27 +41,164 @@ async function inflate(bytes: Uint8Array): Promise<Uint8Array | null> {
 
 // Turn one content stream into rows of positioned text:
 //   y=627 | x=34 "First Language English" | x=265 "80" | x=319 "71" | …
+//
+// Tokenised rather than read line by line. The first version matched anchored
+// regexes against each line, which silently required every operator to sit
+// alone on its own line and every string to be parenthesised. Plenty of PDF
+// writers emit "BT /F1 9 Tf 1 0 0 1 34 627 Tm (English) Tj ET" as one line, or
+// use hex strings, and against those it found nothing whatsoever — reported
+// upstream as "this PDF has no text in it", which was simply untrue.
 function positionalRows(content: string): string {
   type Item = { y: number; x: number; t: string };
   const items: Item[] = [];
-  let x = 0, y = 0;
 
-  for (const rawLine of content.split("\n")) {
-    const line = rawLine.trim();
+  // Text state. We only need where each show operation starts, so glyph widths
+  // are not tracked — the line matrix translation is enough.
+  let lx = 0, ly = 0, leading = 0;
+  const operands: any[] = [];
+  let i = 0;
 
-    const td = line.match(/^(-?[\d.]+)\s+(-?[\d.]+)\s+Td$/);
-    if (td) { x = parseFloat(td[1]); y = parseFloat(td[2]); continue; }
+  const isDelim = (c: string) => c === "(" || c === ")" || c === "<" || c === ">" ||
+    c === "[" || c === "]" || c === "{" || c === "}" || c === "/" || c === "%";
+  const isSpace = (c: string) => c === " " || c === "\n" || c === "\r" || c === "\t" ||
+    c === "\f" || c === "\0";
 
-    const tm = line.match(/^(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+Tm$/);
-    if (tm) { x = parseFloat(tm[5]); y = parseFloat(tm[6]); continue; }
+  // A literal string: nested parentheses, backslash escapes, octal codes.
+  const readLiteral = (): string => {
+    let depth = 1, out = "";
+    i++; // past "("
+    while (i < content.length && depth > 0) {
+      const c = content[i];
+      if (c === "\\") {
+        const n = content[i + 1];
+        if (n >= "0" && n <= "7") {
+          let oct = "";
+          i++;
+          while (oct.length < 3 && content[i] >= "0" && content[i] <= "7") oct += content[i++];
+          out += String.fromCharCode(parseInt(oct, 8));
+          continue;
+        }
+        const map: Record<string, string> = { n: "\n", r: "\r", t: "\t", b: "\b", f: "\f" };
+        out += map[n] ?? n ?? "";
+        i += 2;
+        continue;
+      }
+      if (c === "(") { depth++; out += c; i++; continue; }
+      if (c === ")") { depth--; if (depth > 0) out += c; i++; continue; }
+      out += c;
+      i++;
+    }
+    return out;
+  };
 
-    if (!line.includes("Tj") && !line.includes("TJ")) continue;
-    const parts = line.match(/\((?:[^()\\]|\\.)*\)/g);
-    if (!parts) continue;
-    const text = parts
-      .map((p) => p.slice(1, -1).replace(/\\([()\\])/g, "$1"))
-      .join("");
-    if (text.trim()) items.push({ y: Math.round(y * 10) / 10, x: Math.round(x * 10) / 10, t: text });
+  const readHex = (): string => {
+    i++; // past "<"
+    let hex = "";
+    while (i < content.length && content[i] !== ">") {
+      const c = content[i];
+      if (!isSpace(c)) hex += c;
+      i++;
+    }
+    i++; // past ">"
+    if (hex.length % 2) hex += "0";
+    let out = "";
+    for (let k = 0; k < hex.length; k += 2) out += String.fromCharCode(parseInt(hex.slice(k, k + 2), 16));
+    return out;
+  };
+
+  // Identity-H and similar encodings put glyph ids in the string, not
+  // characters. Those decode to control bytes, and emitting them would fill
+  // the marksheet with rubbish — worse than reporting no text at all.
+  const readable = (s: string) => {
+    if (!s) return false;
+    let ok = 0;
+    for (let k = 0; k < s.length; k++) {
+      const c = s.charCodeAt(k);
+      if (c === 9 || c === 10 || c === 13 || (c >= 32 && c <= 255)) ok++;
+    }
+    return ok / s.length > 0.8;
+  };
+
+  const show = (s: string) => {
+    if (s.trim() && readable(s)) {
+      items.push({ y: Math.round(ly * 10) / 10, x: Math.round(lx * 10) / 10, t: s });
+    }
+  };
+
+  const num = (v: any) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+
+  while (i < content.length) {
+    const c = content[i];
+
+    if (isSpace(c)) { i++; continue; }
+    if (c === "%") { while (i < content.length && content[i] !== "\n") i++; continue; }
+    if (c === "(") { operands.push(readLiteral()); continue; }
+    if (c === "<" && content[i + 1] !== "<") { operands.push(readHex()); continue; }
+    if (c === "<" && content[i + 1] === "<") { i += 2; continue; }   // dictionaries carry no text
+    if (c === ">" && content[i + 1] === ">") { i += 2; continue; }
+    if (c === "[") { operands.push("["); i++; continue; }
+    if (c === "]") {
+      // Collect the array back off the stack for TJ.
+      const arr: any[] = [];
+      while (operands.length && operands[operands.length - 1] !== "[") arr.unshift(operands.pop());
+      if (operands.length) operands.pop();
+      operands.push(arr);
+      i++;
+      continue;
+    }
+    if (c === "/") {
+      i++;
+      while (i < content.length && !isSpace(content[i]) && !isDelim(content[i])) i++;
+      operands.push(null);   // a name is never text we want
+      continue;
+    }
+
+    // Number or operator.
+    let tok = "";
+    while (i < content.length && !isSpace(content[i]) && !isDelim(content[i])) tok += content[i++];
+    if (!tok) { i++; continue; }
+
+    if (/^[-+.\d]/.test(tok)) {
+      const v = parseFloat(tok);
+      operands.push(Number.isFinite(v) ? v : null);
+      continue;
+    }
+
+    switch (tok) {
+      case "BT": lx = 0; ly = 0; break;
+      case "Tm": {
+        const f = num(operands[operands.length - 1]);
+        const e = num(operands[operands.length - 2]);
+        lx = e; ly = f;
+        break;
+      }
+      case "TD":
+        leading = -num(operands[operands.length - 1]);
+        lx += num(operands[operands.length - 2]);
+        ly += num(operands[operands.length - 1]);
+        break;
+      case "Td":
+        lx += num(operands[operands.length - 2]);
+        ly += num(operands[operands.length - 1]);
+        break;
+      case "TL": leading = num(operands[operands.length - 1]); break;
+      case "T*": ly -= leading; break;
+      case "Tj": show(String(operands[operands.length - 1] ?? "")); break;
+      case "'":
+        ly -= leading;
+        show(String(operands[operands.length - 1] ?? ""));
+        break;
+      case "\"":
+        ly -= leading;
+        show(String(operands[operands.length - 1] ?? ""));
+        break;
+      case "TJ": {
+        const arr = operands[operands.length - 1];
+        if (Array.isArray(arr)) show(arr.filter((p) => typeof p === "string").join(""));
+        break;
+      }
+    }
+    operands.length = 0;
   }
 
   const byRow = new Map<number, Item[]>();
