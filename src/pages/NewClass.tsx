@@ -193,11 +193,20 @@ export default function NewClass() {
       toast.success(`Found ${students.length} students and ${subjectCount} subjects`);
     } catch (e: any) {
       // supabase-js reports a timed-out or crashed function as a send failure,
-      // which tells the teacher nothing useful on its own.
+      // which tells the teacher nothing useful on its own. Where the platform
+      // answered with a status of its own, say what it actually was — "too
+      // large" and "took too long" need different things from the teacher, and
+      // both used to arrive as the same unhelpful sentence.
       const raw = String(e?.message ?? "");
+      const status = e?.context?.status;
+      const mb = (file.size / 1048576).toFixed(1);
       toast.error(
-        /failed to send|fetch/i.test(raw)
-          ? "The report couldn't be processed — it may be too large. Try splitting it into two smaller PDFs."
+        status === 413
+          ? `That PDF is too large to upload (${mb}MB). Split it into two smaller PDFs and import them one after the other — the marksheets will merge.`
+          : status === 504
+          ? "The report took too long to read and the upload timed out. Try splitting it into two smaller PDFs."
+          : /failed to send|fetch/i.test(raw)
+          ? `The report couldn't be processed — it may be too large (${mb}MB). Try splitting it into two smaller PDFs.`
           : raw || "Could not read that report",
       );
     } finally {

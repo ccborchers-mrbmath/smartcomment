@@ -227,38 +227,51 @@ interface Extraction {
 // function's wall clock — sending the whole form in a single call is what
 // made this time out.
 async function callGemini(userParts: any[], label: string): Promise<Extraction> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 90_000);
-  try {
-    const res = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent",
-      {
-        method: "POST",
-        headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: [{ role: "user", parts: userParts }],
-          generationConfig: { responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA },
-        }),
-      },
-    );
-    if (res.status === 429) throw new Error("rate_limited");
-    if (!res.ok) {
-      const t = await res.text();
-      console.error(`extract-reports ${label}: gemini ${res.status} ${t.slice(0, 500)}`);
-      throw new Error(`Gemini API: ${res.status}`);
+  // One retry on a rate limit. Running every page group at once (see below)
+  // makes a 429 more likely than it was at three at a time, and failing the
+  // whole upload because one call out of seven was throttled would be worse
+  // than waiting a couple of seconds.
+  for (let attempt = 0; ; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90_000);
+    try {
+      const res = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent",
+        {
+          method: "POST",
+          headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+            contents: [{ role: "user", parts: userParts }],
+            generationConfig: { responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA },
+          }),
+        },
+      );
+      if (res.status === 429) {
+        if (attempt === 0) {
+          clearTimeout(timer);
+          await new Promise((r) => setTimeout(r, 2000));
+          continue;
+        }
+        throw new Error("rate_limited");
+      }
+      if (!res.ok) {
+        const t = await res.text();
+        console.error(`extract-reports ${label}: gemini ${res.status} ${t.slice(0, 500)}`);
+        throw new Error(`Gemini API: ${res.status}`);
+      }
+      const data = await res.json();
+      const raw = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
+      const parsed: Extraction = raw ? JSON.parse(raw) : {};
+      (parsed as any).__usage = data.usageMetadata;
+      return parsed;
+    } catch (e) {
+      if ((e as Error).name === "AbortError") throw new Error(`Timed out reading ${label}. Try splitting the report into smaller PDFs.`);
+      throw e;
+    } finally {
+      clearTimeout(timer);
     }
-    const data = await res.json();
-    const raw = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
-    const parsed: Extraction = raw ? JSON.parse(raw) : {};
-    (parsed as any).__usage = data.usageMetadata;
-    return parsed;
-  } catch (e) {
-    if ((e as Error).name === "AbortError") throw new Error(`Timed out reading ${label}. Try splitting the report into smaller PDFs.`);
-    throw e;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -290,6 +303,11 @@ serve(async (req) => {
     const t0 = Date.now();
     stage = "decode_base64";
     const pdfBytes = Uint8Array.from(atob(fileBase64), (c) => c.charCodeAt(0));
+    // Logged so a rejected upload can be sized after the fact. The gateway
+    // enforces its own body limit ahead of this function and answers 413 on
+    // its own, so a request that never gets here leaves no other trace of how
+    // big it was.
+    console.log(`extract-reports: received ${(pdfBytes.length / 1048576).toFixed(2)}MB PDF (${(fileBase64.length / 1048576).toFixed(2)}MB as base64)`);
     let pages: string[] = [];
     let layerError: string | null = null;
     stage = "parse_text_layer";
@@ -343,7 +361,6 @@ serve(async (req) => {
       // time. The PDF bytes are not sent — the coordinates carry everything
       // the model needs, and leaving the file out keeps each call fast.
       const GROUP = 4;
-      const CONCURRENCY = 3;
       const groups: { from: number; text: string }[] = [];
       for (let i = 0; i < pages.length; i += GROUP) {
         groups.push({
@@ -351,6 +368,14 @@ serve(async (req) => {
           text: pages.slice(i, i + GROUP).map((p, j) => `--- PAGE ${i + j + 1} ---\n${p}`).join("\n\n"),
         });
       }
+
+      // Run every group at once where we can. A 27-page form is 7 calls, and
+      // three at a time took 162s against a 150s gateway timeout — the browser
+      // got a 504 even though the extraction itself had succeeded 12s later.
+      // Each call takes roughly the same time whether or not others are in
+      // flight, so the wall clock is essentially the number of waves. Capped
+      // so a very large form does not fire off an unbounded burst.
+      const CONCURRENCY = Math.min(8, Math.max(3, groups.length));
 
       const results: Extraction[] = new Array(groups.length);
       for (let i = 0; i < groups.length; i += CONCURRENCY) {
