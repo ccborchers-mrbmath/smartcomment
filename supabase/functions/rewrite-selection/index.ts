@@ -9,6 +9,11 @@ const corsHeaders = {
 };
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
+// Shares GEMINI_COMMENT_MODEL with generate-comments: rewriting a selection is the
+// same wording task as writing the comment, so both paths must move together. If
+// they diverge, flipping the model to work through a capped day leaves the rewrite
+// button still hitting the exhausted quota.
+const COMMENT_MODEL = Deno.env.get("GEMINI_COMMENT_MODEL") ?? "gemini-3.1-pro-preview";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
@@ -129,7 +134,7 @@ ${selection}
 Return only the replacement for the selected text.`;
 
     const ask = async (extra: string) => {
-      const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent", {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${COMMENT_MODEL}:generateContent`, {
         method: "POST",
         headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -153,7 +158,7 @@ Return only the replacement for the selected text.`;
       const data = await res.json();
       const raw = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
       const parsed = raw ? JSON.parse(raw) : { text: "" };
-      await logUsage({ userId: user.id, functionName: "rewrite-selection", model: "google/gemini-3.1-pro-preview", units: 1, usage: geminiUsage(data.usageMetadata) });
+      await logUsage({ userId: user.id, functionName: "rewrite-selection", model: `google/${COMMENT_MODEL}`, units: 1, usage: geminiUsage(data.usageMetadata) });
       return { text: String(parsed.text ?? "") };
     };
 
